@@ -25,3 +25,6 @@ tmp/
 # Local logs and temporary files
 *.log
 *.tmp
+
+# JMH 基准输出（构建产物）
+jmh-result.text
