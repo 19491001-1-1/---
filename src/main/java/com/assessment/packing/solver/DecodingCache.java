@@ -35,6 +35,12 @@ final class DecodingCache {
     private final Item[] byId;
     private final PackingDecoder decoder;
     private final Map<SequenceKey, Long> areas;
+    /** 是否真正查表。关闭时 {@link #get} 恒返回 {@code null} 且不写入，语义等同于「没有缓存这一层」。 */
+    private final boolean enabled;
+    /** 命中/查询/淘汰记账；{@code enabled=false} 时只有 {@code enabled} 位有意义。 */
+    private long queries;
+    private long hits;
+    private long evictions;
     /**
      * 还原零件列表用的复用缓冲区。解码是搜索里最热的路径，未命中时若每次都新建
      * {@code ArrayList<Item>}，这笔分配会随评价次数线性增长。所有解码器都只读取该列表
@@ -56,7 +62,8 @@ final class DecodingCache {
     DecodingCache(Instance instance, PackingDecoder decoder, int capacity) {
         this.instance = java.util.Objects.requireNonNull(instance, "实例不能为空");
         this.decoder = java.util.Objects.requireNonNull(decoder, "排样解码器不能为空");
-        if (capacity <= 0) throw new IllegalArgumentException("缓存容量必须为正数");
+        if (capacity < 0) throw new IllegalArgumentException("缓存容量不能为负数");
+        this.enabled = capacity > 0;
         this.byId = new Item[maxId(instance) + 1];
         for (Item item : instance.items()) byId[item.id()] = item;
         this.priority = new ArrayList<>(instance.items().size());
@@ -64,14 +71,37 @@ final class DecodingCache {
         this.areas = new LinkedHashMap<>(16, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<SequenceKey, Long> eldest) {
-                return size() > capacity;
+                if (size() > capacity) {
+                    evictions++;
+                    return true;
+                }
+                return false;
             }
         };
     }
 
-    /** 命中则返回已缓存的装载面积，否则返回 {@code null}。不触发解码。 */
+    /** 缓存是否真正生效。关闭时等价于「每次评价都直接解码」。 */
+    boolean enabled() {
+        return enabled;
+    }
+
+    /** 本次搜索的缓存账本快照。 */
+    DecodingCacheStatistics statistics() {
+        return new DecodingCacheStatistics(enabled, queries, hits, evictions);
+    }
+
+    /**
+     * 命中则返回已缓存的装载面积，否则返回 {@code null}。不触发解码。
+     *
+     * <p>缓存关闭时恒返回 {@code null}（不查表、不计数），因为此时每次评价都必须真实解码，
+     * 「未命中」这个说法没有意义。
+     */
     Long get(int[] sequence) {
-        return areas.get(lookup(sequence));
+        if (!enabled) return null;
+        queries++;
+        Long cached = areas.get(lookup(sequence));
+        if (cached != null) hits++;
+        return cached;
     }
 
     /**
@@ -91,7 +121,7 @@ final class DecodingCache {
      */
     long decodeAndStore(int[] sequence) {
         long area = decoder.packedAreaInPriorityOrder(instance, toItems(sequence));
-        areas.put(new SequenceKey(sequence), area);
+        store(sequence, area);
         return area;
     }
 
@@ -102,11 +132,17 @@ final class DecodingCache {
 
     /** 存入一个已算出的装载面积，用于调用方自己完成了预算判定之后的回填。 */
     void put(int[] sequence, long area) {
+        store(sequence, area);
+    }
+
+    /** 缓存关闭时不存条目：调用方已经付过一次真实解码，不需要再把这笔内存钉住。 */
+    private void store(int[] sequence, long area) {
+        if (!enabled) return;
         areas.put(new SequenceKey(sequence), area);
     }
 
     boolean contains(int[] sequence) {
-        return areas.containsKey(lookup(sequence));
+        return enabled && areas.containsKey(lookup(sequence));
     }
 
     int size() {

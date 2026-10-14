@@ -9,10 +9,12 @@ public record AntColonyStatistics(
         long fitnessCacheHits,
         long pheromoneDeposits,
         int bestImprovements,
-        int noImprovementIterations) {
+        int noImprovementIterations,
+        DecodingCacheStatistics cache) {
 
     public static AntColonyStatistics empty() {
-        return new AntColonyStatistics(0, 0, 0, 0, 0, 0, 0, 0);
+        return new AntColonyStatistics(
+                0, 0, 0, 0, 0, 0, 0, 0, DecodingCacheStatistics.empty());
     }
 
     public double cacheHitRate() {

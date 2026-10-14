@@ -44,6 +44,12 @@ public final class ExperimentRunner {
                     repeatDeterministic, PackingDecoderType.SKYLINE, false, 1);
         }
 
+        /**
+         * 环境变量 {@code PACKING_PARALLELISM} 的上限。并行是实验批次的加速手段，不是越多越好：
+         * 把机器打满会让每个任务争抢 CPU，既拖长单次运行，也让耗时统计失去参考价值。
+         */
+        static final int MAX_PARALLELISM = 16;
+
         public Options {
             Objects.requireNonNull(dataDirectory, "数据目录不能为空");
             Objects.requireNonNull(outputDirectory, "输出目录不能为空");
@@ -65,6 +71,12 @@ public final class ExperimentRunner {
             if (algorithms.isEmpty()) throw new IllegalArgumentException("算法列表不能为空");
             if (seeds.isEmpty()) throw new IllegalArgumentException("随机种子列表不能为空");
             if (parallelism < 1) throw new IllegalArgumentException("并行度必须为正数：" + parallelism);
+            if (parallelism > MAX_PARALLELISM) {
+                throw new IllegalArgumentException(String.format(
+                        "并行度最大为 %d，收到 %d；并行度受限于机器核数，"
+                                + "过高只会让任务互相争抢 CPU",
+                        MAX_PARALLELISM, parallelism));
+            }
             if (parallelism > 1 && "TIME_MS".equals(budgetKind)) {
                 throw new IllegalArgumentException(
                         "时间预算实验不能并行：并行会让算法争抢CPU，耗时不再公平");

@@ -79,7 +79,9 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
         }
 
         // 重复排列的复用集中在这里；预算与计数口径仍由下面的循环条件决定。
-        DecodingCache cache = new DecodingCache(instance, decoder);
+        // 容量默认与既有行为一致，可用 PACKING_CACHE_CAPACITY 做「无缓存/固定缓存」对照实验。
+        DecodingCache cache = new DecodingCache(
+                instance, decoder, DecodingCacheCapacity.configured());
         Random random = new Random(config.seed());
         long currentArea = cache.areaOf(currentSequence);
         // currentSequence 只在接受候选时整体换新，从不就地改写，因此可以直接共享引用。
@@ -173,7 +175,8 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
                 rejected,
                 bestImprovements,
                 initialTemperature,
-                temperature);
+                temperature,
+                cache.statistics());
         lastConvergenceTrace = List.copyOf(trace);
         return new Solution(name(), verifiedBest.placements(), System.nanoTime() - start);
     }

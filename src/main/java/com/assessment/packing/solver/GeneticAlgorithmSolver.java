@@ -349,7 +349,8 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
                 crossoverEvents,
                 mutationEvents,
                 duplicateRejections,
-                bestImprovements);
+                bestImprovements,
+                evaluator.cache.statistics());
         lastHybridStatistics = hybridCounters.toStatistics();
         lastAdaptiveStatistics = adaptiveCounters.toStatistics();
         lastBestAreaHistory = List.copyOf(bestAreaHistory);
@@ -859,7 +860,8 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
                 long startNanos) {
             this.searchLimit = searchLimit;
             this.startNanos = startNanos;
-            this.cache = new DecodingCache(instance, decoder);
+            this.cache = new DecodingCache(
+                    instance, decoder, DecodingCacheCapacity.configured());
         }
 
         private long packedArea(int[] sequence) {

@@ -8,10 +8,12 @@ public record GeneticAlgorithmStatistics(
         long crossoverEvents,
         long mutationEvents,
         long duplicateRejections,
-        int bestImprovements) {
+        int bestImprovements,
+        DecodingCacheStatistics cache) {
 
     public static GeneticAlgorithmStatistics empty() {
-        return new GeneticAlgorithmStatistics(0, 0, 0, 0, 0, 0, 0, 0);
+        return new GeneticAlgorithmStatistics(
+                0, 0, 0, 0, 0, 0, 0, 0, DecodingCacheStatistics.empty());
     }
 
     public double cacheHitRate() {

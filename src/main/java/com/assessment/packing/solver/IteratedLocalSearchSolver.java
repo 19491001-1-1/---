@@ -139,7 +139,8 @@ public final class IteratedLocalSearchSolver
 
         lastStatistics = new IteratedLocalSearchStatistics(
                 iterations, evaluator.evaluations, evaluator.cacheHits,
-                perturbations, localImprovements, bestImprovements, acceptedWorseBasins);
+                perturbations, localImprovements, bestImprovements, acceptedWorseBasins,
+                evaluator.cache.statistics());
         lastConvergenceTrace = List.copyOf(trace);
         return new Solution(name(), evaluator.solve(best.sequence()).placements(),
                 System.nanoTime() - start);
@@ -172,7 +173,8 @@ public final class IteratedLocalSearchSolver
                 PackingDecoder decoder, SearchLimit limit, long start) {
             this.limit = limit;
             this.start = start;
-            this.cache = new DecodingCache(instance, decoder);
+            this.cache = new DecodingCache(
+                    instance, decoder, DecodingCacheCapacity.configured());
         }
 
         private boolean canEvaluate() {

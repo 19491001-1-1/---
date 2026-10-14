@@ -7,9 +7,11 @@ public record IteratedLocalSearchStatistics(
         long perturbations,
         long localImprovements,
         long bestImprovements,
-        long acceptedWorseBasins) {
+        long acceptedWorseBasins,
+        DecodingCacheStatistics cache) {
 
     public static IteratedLocalSearchStatistics empty() {
-        return new IteratedLocalSearchStatistics(0, 0, 0, 0, 0, 0, 0);
+        return new IteratedLocalSearchStatistics(
+                0, 0, 0, 0, 0, 0, 0, DecodingCacheStatistics.empty());
     }
 }

@@ -8,8 +8,15 @@ public record TabuSearchStatistics(
         int acceptedWorseMoves,
         int aspirationAcceptances,
         int expandedNeighborhoods,
-        int stalledIterations) {
+        int stalledIterations,
+        DecodingCacheStatistics cache) {
+
     public static TabuSearchStatistics empty() {
-        return new TabuSearchStatistics(0, 0, 0, 0, 0, 0, 0, 0);
+        return new TabuSearchStatistics(0, 0, 0, 0, 0, 0, 0, 0, DecodingCacheStatistics.empty());
+    }
+
+    /** 缓存命中率（百分数）；未启用或零查询时记为 0。 */
+    public double cacheHitRatePercent() {
+        return cache.hitRatePercent();
     }
 }

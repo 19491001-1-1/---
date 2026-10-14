@@ -26,6 +26,8 @@ public final class DecodingCacheTest {
         decoderAndInstanceDoNotLeakAcrossCaches();
         decodeAndStoreSkipsLookup();
         reusedLookupKeyDoesNotResurrectEvictedEntry();
+        statisticsCountQueriesHitsAndEvictions();
+        disabledCacheNeverStoresAndMatchesDirectDecode();
         System.out.println("DecodingCacheTest: 全部通过");
     }
 
@@ -146,6 +148,63 @@ public final class DecodingCacheTest {
         check(cache.get(new int[]{3, 5, 9, 7}) == null, "淘汰后重新查找必须未命中");
         cache.areaOf(new int[]{3, 5, 9, 7});
         check(decoder.calls == 4, "淘汰后应重新解码，实际=" + decoder.calls);
+    }
+
+    /** 缓存账本必须如实反映查询、命中与淘汰，这是判断缓存是否值得开的数据来源。 */
+    private static void statisticsCountQueriesHitsAndEvictions() {
+        CountingDecoder decoder = new CountingDecoder();
+        DecodingCache cache = new DecodingCache(instance(), decoder, 2);
+
+        check(cache.statistics().equals(new DecodingCacheStatistics(true, 0, 0, 0)),
+                "尚未评价时统计应为零，实际=" + cache.statistics());
+        check(cache.statistics().enabled(), "默认容量的缓存应报告已启用");
+
+        // 容量2。注意 get 只查表不存表，因此未命中的排列随后走 areaOf 仍是未命中。
+        cache.areaOf(new int[]{3, 5, 9, 7});         // 查询1 未命中 → 存入 A
+        cache.areaOf(new int[]{3, 5, 9, 7});         // 查询2 命中 A
+        cache.areaOf(new int[]{5, 3, 9, 7});         // 查询3 未命中 → 存入 B
+        cache.areaOf(new int[]{5, 3, 9, 7});         // 查询4 命中 B
+        cache.areaOf(new int[]{3, 5, 9, 7});         // 查询5 命中最久未用的 A，A 转为最近使用
+        cache.areaOf(new int[]{7, 9, 5, 3});         // 查询6 未命中 → 存入 C，淘汰最久未用的 B
+
+        DecodingCacheStatistics statistics = cache.statistics();
+        check(statistics.enabled(), "统计应报告缓存已启用");
+        check(statistics.queries() == 6, "查询数应为6，实际=" + statistics.queries());
+        check(statistics.hits() == 3, "命中数应为3，实际=" + statistics.hits());
+        check(statistics.misses() == 3, "未命中数应为3，实际=" + statistics.misses());
+        check(statistics.evictions() == 1, "淘汰数应为1，实际=" + statistics.evictions());
+        check(Math.abs(statistics.hitRatePercent() - 50.0) < 1e-9,
+                "命中率应为50%，实际=" + statistics.hitRatePercent());
+    }
+
+    /**
+     * 容量为 0 表示彻底关闭缓存：既不查表也不存条目，每次评价都是真实解码。
+     * 这正是「无缓存」对照组的语义，必须与直接求解逐位一致。
+     */
+    private static void disabledCacheNeverStoresAndMatchesDirectDecode() {
+        CountingDecoder decoder = new CountingDecoder();
+        DecodingCache disabled = new DecodingCache(instance(), decoder, 0);
+        int[] sequence = {3, 5, 9, 7};
+
+        long first = disabled.areaOf(sequence);
+        long second = disabled.areaOf(sequence.clone());
+
+        check(first == second && first == 300, "关闭缓存后仍应得到同一面积，实际=" + first + "/" + second);
+        check(decoder.calls == 2, "关闭缓存后每次评价都必须真实解码，实际=" + decoder.calls);
+        check(!disabled.enabled(), "容量为0应报告缓存未启用");
+        check(!disabled.contains(sequence), "关闭缓存时contains恒为false");
+        check(disabled.get(sequence) == null, "关闭缓存时get恒为null");
+
+        DecodingCacheStatistics statistics = disabled.statistics();
+        check(!statistics.enabled(), "关闭缓存时统计应报告未启用");
+        check(statistics.queries() == 0 && statistics.hits() == 0 && statistics.evictions() == 0,
+                "关闭缓存时不应产生任何查询记账，实际=" + statistics);
+        check(statistics.hitRatePercent() == 0.0, "未启用时命中率记为0");
+
+        // put 也不能把条目留在关闭的缓存里，否则会与「无缓存」语义相悖。
+        disabled.put(sequence, 12345L);
+        check(disabled.get(sequence) == null, "关闭缓存的put不得留下条目");
+        check(disabled.size() == 0, "关闭缓存的size应恒为0，实际=" + disabled.size());
     }
 
     private static Instance instance() {

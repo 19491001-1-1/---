@@ -184,7 +184,8 @@ public final class AntColonySolver
                 evaluator.cacheHits,
                 pheromoneDeposits,
                 bestImprovements,
-                noImprovementIterations);
+                noImprovementIterations,
+                evaluator.cache.statistics());
         lastConvergenceTrace = List.copyOf(trace);
         return new Solution(name(), verifiedBest.placements(), System.nanoTime() - start);
     }
@@ -323,7 +324,8 @@ public final class AntColonySolver
             this.decoder = decoder;
             this.limit = limit;
             this.startNanos = startNanos;
-            this.cache = new DecodingCache(instance, decoder);
+            this.cache = new DecodingCache(
+                    instance, decoder, DecodingCacheCapacity.configured());
         }
 
         private long evaluateInitial(int[] sequence) {

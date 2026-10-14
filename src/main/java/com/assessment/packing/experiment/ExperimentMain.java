@@ -172,11 +172,23 @@ public final class ExperimentMain {
      * 并行度为显式开关：默认串行（1），与既有产出逐位一致。
      * 只有在设置环境变量 {@code PACKING_PARALLELISM} 时才并行；
      * 时间预算实验会因公平性被 {@link ExperimentRunner.Options} 拒绝。
+     *
+     * <p>取值受 {@link ExperimentRunner.Options#MAX_PARALLELISM} 约束：这是防止一次手误
+     * 就把机器打满的护栏，而不是性能调参。越界直接报错而非静默截断，免得实验者以为生效了。
      */
     private static int parallelism() {
         String value = System.getenv("PACKING_PARALLELISM");
         if (value == null || value.isBlank()) return 1;
-        return Integer.parseInt(value.trim());
+        int parallelism;
+        try {
+            parallelism = Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("PACKING_PARALLELISM 必须是整数：" + value, e);
+        }
+        if (parallelism < 1) {
+            throw new IllegalArgumentException("PACKING_PARALLELISM 必须为正数：" + value);
+        }
+        return parallelism;
     }
 
     private static List<Long> seeds(int repetitions, long baseSeed) {

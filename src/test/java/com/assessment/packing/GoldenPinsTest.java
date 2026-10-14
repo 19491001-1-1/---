@@ -48,27 +48,39 @@ public final class GoldenPinsTest {
                 TabuMode.FULL_STATE,
                 "TabuSearchStatistics[completedIterations=83, evaluatedNeighbors=3531, "
                         + "tabuHits=204, bestImprovements=2, acceptedWorseMoves=0, "
-                        + "aspirationAcceptances=0, expandedNeighborhoods=0, stalledIterations=0]",
+                        + "aspirationAcceptances=0, expandedNeighborhoods=0, stalledIterations=0, "
+                        + "cache=DecodingCacheStatistics[enabled=true, queries=3532, "
+                        + "hits=2671, evictions=0]]",
                 TabuMode.MOVE,
                 "TabuSearchStatistics[completedIterations=83, evaluatedNeighbors=3735, "
                         + "tabuHits=775, bestImprovements=2, acceptedWorseMoves=0, "
-                        + "aspirationAcceptances=0, expandedNeighborhoods=0, stalledIterations=0]",
+                        + "aspirationAcceptances=0, expandedNeighborhoods=0, stalledIterations=0, "
+                        + "cache=DecodingCacheStatistics[enabled=true, queries=3736, "
+                        + "hits=610, evictions=0]]",
                 TabuMode.POSITION_ATTRIBUTE,
                 "TabuSearchStatistics[completedIterations=83, evaluatedNeighbors=3735, "
                         + "tabuHits=1195, bestImprovements=2, acceptedWorseMoves=0, "
-                        + "aspirationAcceptances=0, expandedNeighborhoods=0, stalledIterations=0]",
+                        + "aspirationAcceptances=0, expandedNeighborhoods=0, stalledIterations=0, "
+                        + "cache=DecodingCacheStatistics[enabled=true, queries=3736, "
+                        + "hits=427, evictions=0]]",
                 TabuMode.RELATIVE_ORDER_ATTRIBUTE,
                 "TabuSearchStatistics[completedIterations=83, evaluatedNeighbors=3735, "
                         + "tabuHits=2829, bestImprovements=2, acceptedWorseMoves=0, "
-                        + "aspirationAcceptances=1, expandedNeighborhoods=0, stalledIterations=9]",
+                        + "aspirationAcceptances=1, expandedNeighborhoods=0, stalledIterations=9, "
+                        + "cache=DecodingCacheStatistics[enabled=true, queries=3736, "
+                        + "hits=694, evictions=0]]",
                 TabuMode.ADJACENCY_ATTRIBUTE,
                 "TabuSearchStatistics[completedIterations=83, evaluatedNeighbors=3735, "
                         + "tabuHits=2794, bestImprovements=2, acceptedWorseMoves=8, "
-                        + "aspirationAcceptances=0, expandedNeighborhoods=0, stalledIterations=0]",
+                        + "aspirationAcceptances=0, expandedNeighborhoods=0, stalledIterations=0, "
+                        + "cache=DecodingCacheStatistics[enabled=true, queries=3736, "
+                        + "hits=219, evictions=0]]",
                 TabuMode.PLACEMENT_ATTRIBUTE,
                 "TabuSearchStatistics[completedIterations=83, evaluatedNeighbors=3735, "
                         + "tabuHits=470, bestImprovements=2, acceptedWorseMoves=0, "
-                        + "aspirationAcceptances=1, expandedNeighborhoods=0, stalledIterations=8]");
+                        + "aspirationAcceptances=1, expandedNeighborhoods=0, stalledIterations=8, "
+                        + "cache=DecodingCacheStatistics[enabled=true, queries=0, "
+                        + "hits=0, evictions=0]]");
 
         for (TabuMode mode : TabuMode.values()) {
             TabuSearchSolver solver = new TabuSearchSolver(

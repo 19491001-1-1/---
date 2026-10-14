@@ -93,7 +93,9 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
         for (Item item : instance.items()) maxId = Math.max(maxId, item.id());
 
         // 重复排列的复用集中在这里；预算与计数口径仍由下面的循环条件决定。
-        DecodingCache cache = new DecodingCache(instance, decoder);
+        // 容量默认与既有行为一致，可用 PACKING_CACHE_CAPACITY 做「无缓存/固定缓存」对照实验。
+        DecodingCache cache = new DecodingCache(
+                instance, decoder, DecodingCacheCapacity.configured());
         // 只有 PLACEMENT_ATTRIBUTE 需要知道每个零件落在哪里，其余模式只比较面积即可。
         boolean needsPlacements = mode == TabuMode.PLACEMENT_ATTRIBUTE;
         Solution currentSolution = needsPlacements ? cache.solve(currentSequence) : null;
@@ -220,7 +222,7 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
         Solution verifiedBest = cache.solve(bestSequence);
         lastStatistics = new TabuSearchStatistics(
                 completedIterations, evaluated, tabuHits, improvements, acceptedWorse,
-                aspirations, expanded, stalled);
+                aspirations, expanded, stalled, cache.statistics());
         lastConvergenceTrace = List.copyOf(trace);
         return new Solution(name(), verifiedBest.placements(), System.nanoTime() - start);
     }
