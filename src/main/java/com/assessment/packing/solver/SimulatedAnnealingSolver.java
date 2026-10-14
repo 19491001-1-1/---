@@ -5,9 +5,7 @@ import com.assessment.packing.model.Item;
 import com.assessment.packing.model.Solution;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 
 /** 使用零件优先级排列和可注入排样解码器的经典模拟退火。 */
@@ -80,19 +78,18 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
             return new Solution(name(), only.placements(), System.nanoTime() - start);
         }
 
-        Map<Integer, Item> itemById = new HashMap<>();
-        for (Item item : instance.items()) itemById.put(item.id(), item);
-
+        // 重复排列的复用集中在这里；预算与计数口径仍由下面的循环条件决定。
+        DecodingCache cache = new DecodingCache(instance, decoder);
         Random random = new Random(config.seed());
-        Solution currentSolution = evaluate(instance, currentSequence, itemById, decoder);
+        long currentArea = cache.areaOf(currentSequence);
         int[] bestSequence = currentSequence.clone();
-        Solution bestSolution = currentSolution;
+        long bestArea = currentArea;
 
         List<ConvergencePoint> trace = new ArrayList<>();
-        trace.add(new ConvergencePoint(0, 0, bestSolution.packedArea()));
+        trace.add(new ConvergencePoint(0, 0, bestArea));
 
         TemperatureEstimate estimate = estimateInitialTemperature(
-                instance, currentSequence, currentSolution, itemById, decoder, random, start);
+                instance, currentSequence, currentArea, cache, random, start);
         double initialTemperature = Math.max(
                 estimate.temperature(), config.minimumTemperature() / config.coolingRate());
         double temperature = initialTemperature;
@@ -110,7 +107,7 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
         while (completedLevels < config.maxTemperatureLevels()
                 && temperature >= config.minimumTemperature()
                 && noImprovementLevels < config.maxNoImprovementLevels()
-                && bestSolution.packedArea() < instance.binArea()
+                && bestArea < instance.binArea()
                 && !searchLimit.timeReached(start)
                 && estimate.evaluations() + evaluated < searchLimit.maxEvaluations()) {
 
@@ -119,16 +116,15 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
 
             for (int attempt = 0;
                     attempt < attempts
-                            && bestSolution.packedArea() < instance.binArea()
+                            && bestArea < instance.binArea()
                             && !searchLimit.timeReached(start)
                             && estimate.evaluations() + evaluated < searchLimit.maxEvaluations();
                     attempt++) {
                 int[] candidateSequence = randomSwap(currentSequence, random);
-                Solution candidateSolution = evaluate(
-                        instance, candidateSequence, itemById, decoder);
+                long candidateArea = cache.areaOf(candidateSequence);
                 evaluated++;
 
-                long areaDifference = candidateSolution.packedArea() - currentSolution.packedArea();
+                long areaDifference = candidateArea - currentArea;
                 double normalizedDifference = (double) areaDifference / instance.binArea();
                 boolean accept = areaDifference >= 0
                         || random.nextDouble() < acceptanceProbability(normalizedDifference, temperature);
@@ -143,11 +139,11 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
                 else acceptedWorse++;
 
                 currentSequence = candidateSequence;
-                currentSolution = candidateSolution;
+                currentArea = candidateArea;
 
-                if (currentSolution.packedArea() > bestSolution.packedArea()) {
+                if (currentArea > bestArea) {
                     bestSequence = currentSequence.clone();
-                    bestSolution = currentSolution;
+                    bestArea = currentArea;
                     bestImprovements++;
                     improvedBestThisLevel = true;
                 }
@@ -156,11 +152,11 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
             if (improvedBestThisLevel) noImprovementLevels = 0;
             else noImprovementLevels++;
             trace.add(new ConvergencePoint(
-                    completedLevels, estimate.evaluations() + evaluated, bestSolution.packedArea()));
+                    completedLevels, estimate.evaluations() + evaluated, bestArea));
             temperature *= config.coolingRate();
         }
 
-        Solution verifiedBest = evaluate(instance, bestSequence, itemById, decoder);
+        Solution verifiedBest = cache.solve(bestSequence);
         lastStatistics = new SimulatedAnnealingStatistics(
                 completedLevels,
                 estimate.evaluations(),
@@ -179,9 +175,8 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
     private TemperatureEstimate estimateInitialTemperature(
             Instance instance,
             int[] initialSequence,
-            Solution initialSolution,
-            Map<Integer, Item> itemById,
-            PackingDecoder decoder,
+            long initialArea,
+            DecodingCache cache,
             Random random,
             long startNanos) {
 
@@ -194,9 +189,9 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
                         && !searchLimit.timeReached(startNanos);
                 sample++) {
             int[] candidateSequence = randomSwap(initialSequence, random);
-            Solution candidate = evaluate(instance, candidateSequence, itemById, decoder);
+            long candidateArea = cache.areaOf(candidateSequence);
             evaluations++;
-            long areaLoss = initialSolution.packedArea() - candidate.packedArea();
+            long areaLoss = initialArea - candidateArea;
             if (areaLoss > 0) {
                 totalLoss += (double) areaLoss / instance.binArea();
                 worseningSamples++;
@@ -225,20 +220,6 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
         candidate[first] = candidate[second];
         candidate[second] = temporary;
         return candidate;
-    }
-
-    private static Solution evaluate(
-            Instance instance,
-            int[] sequence,
-            Map<Integer, Item> itemById,
-            PackingDecoder decoder) {
-        List<Item> priority = new ArrayList<>(sequence.length);
-        for (int id : sequence) {
-            Item item = itemById.get(id);
-            if (item == null) throw new IllegalStateException("序列包含不存在的零件编号：" + id);
-            priority.add(item);
-        }
-        return decoder.solveInPriorityOrder(instance, priority);
     }
 
     private record TemperatureEstimate(double temperature, long evaluations) {}

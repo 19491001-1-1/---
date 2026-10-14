@@ -20,7 +20,7 @@ final class ExperimentRunConfiguration {
             "dataDirectory", "outputDirectory", "algorithms", "decoder",
             "rotationAllowed", "order", "repetitions", "baseSeed", "profile",
             "maxEvaluations", "maxMilliseconds", "experimentName", "resume",
-            "repeatDeterministic");
+            "repeatDeterministic", "parallelism");
 
     private ExperimentRunConfiguration() {}
 
@@ -50,6 +50,12 @@ final class ExperimentRunConfiguration {
                 : milliseconds != Long.MAX_VALUE ? "TIME_MS" : "DEFAULT";
         long budgetValue = evaluations != Long.MAX_VALUE ? evaluations
                 : milliseconds != Long.MAX_VALUE ? milliseconds : 0;
+        int parallelism = integer(values, "parallelism", 1);
+        if (parallelism < 1) throw new IllegalArgumentException("parallelism必须为正数");
+        if (parallelism > 1 && milliseconds != Long.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "parallelism>1不能与maxMilliseconds同时设置：并行会让耗时不再公平");
+        }
 
         return new ExperimentRunner.Options(
                 Path.of(values.getProperty("dataDirectory", "gcut01")),
@@ -65,7 +71,8 @@ final class ExperimentRunConfiguration {
                 budgetValue,
                 bool(values, "repeatDeterministic", false),
                 PackingDecoderType.parse(values.getProperty("decoder", "SKYLINE")),
-                bool(values, "resume", true));
+                bool(values, "resume", true),
+                parallelism);
     }
 
     private static List<AlgorithmId> algorithms(String value) {

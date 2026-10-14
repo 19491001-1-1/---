@@ -5,10 +5,7 @@ import com.assessment.packing.model.Item;
 import com.assessment.packing.model.Solution;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 
 /** 通过可注入排样解码器搜索零件优先级排列的迭代局部搜索（ILS）。 */
@@ -66,9 +63,7 @@ public final class IteratedLocalSearchSolver
         long start = System.nanoTime();
         int[] initial = ItemOrdering.sort(instance.items(), initialOrder).stream()
                 .mapToInt(Item::id).toArray();
-        Map<Integer, Item> itemById = new HashMap<>();
-        for (Item item : instance.items()) itemById.put(item.id(), item);
-        EvaluationCache evaluator = new EvaluationCache(instance, itemById, decoder, limit, start);
+        EvaluationCache evaluator = new EvaluationCache(instance, decoder, limit, start);
 
         Evaluated current = evaluator.evaluate(initial);
         if (current == null) {
@@ -79,7 +74,7 @@ public final class IteratedLocalSearchSolver
         Evaluated best = current;
         Random random = new Random(config.seed());
         List<ConvergencePoint> trace = new ArrayList<>();
-        trace.add(new ConvergencePoint(0, evaluator.evaluations, best.solution.packedArea()));
+        trace.add(new ConvergencePoint(0, evaluator.evaluations, best.packedArea()));
 
         long perturbations = 0;
         long localImprovements = 0;
@@ -90,7 +85,7 @@ public final class IteratedLocalSearchSolver
 
         while (iterations < config.maxIterations()
                 && noImprovement < config.maxNoImprovementIterations()
-                && best.solution.packedArea() < instance.binArea()
+                && best.packedArea() < instance.binArea()
                 && evaluator.canEvaluate()) {
             iterations++;
             int[] perturbed = current.sequence.clone();
@@ -114,8 +109,8 @@ public final class IteratedLocalSearchSolver
                         swap(neighbor, i, j);
                         Evaluated evaluated = evaluator.evaluate(neighbor);
                         if (evaluated != null
-                                && evaluated.solution.packedArea()
-                                > candidate.solution.packedArea()) {
+                                && evaluated.packedArea()
+                                > candidate.packedArea()) {
                             candidate = evaluated;
                             localImprovements++;
                             improved = true;
@@ -126,12 +121,12 @@ public final class IteratedLocalSearchSolver
             } while (improved && examined < config.localSearchEvaluations()
                     && evaluator.canEvaluate());
 
-            if (candidate.solution.packedArea() < current.solution.packedArea()) {
+            if (candidate.packedArea() < current.packedArea()) {
                 acceptedWorseBasins++;
             }
             // ILS 必须进入扰动后的新盆地，历史最优解单独保留。
             current = candidate;
-            if (candidate.solution.packedArea() > best.solution.packedArea()) {
+            if (candidate.packedArea() > best.packedArea()) {
                 best = candidate;
                 bestImprovements++;
                 noImprovement = 0;
@@ -139,14 +134,15 @@ public final class IteratedLocalSearchSolver
                 noImprovement++;
             }
             trace.add(new ConvergencePoint(iterations, evaluator.evaluations,
-                    best.solution.packedArea()));
+                    best.packedArea()));
         }
 
         lastStatistics = new IteratedLocalSearchStatistics(
                 iterations, evaluator.evaluations, evaluator.cacheHits,
                 perturbations, localImprovements, bestImprovements, acceptedWorseBasins);
         lastConvergenceTrace = List.copyOf(trace);
-        return new Solution(name(), best.solution.placements(), System.nanoTime() - start);
+        return new Solution(name(), evaluator.solve(best.sequence()).placements(),
+                System.nanoTime() - start);
     }
 
     private static void swapTwoDifferent(int[] values, Random random) {
@@ -162,26 +158,21 @@ public final class IteratedLocalSearchSolver
         values[second] = temporary;
     }
 
-    private record Evaluated(int[] sequence, Solution solution) {}
+    private record Evaluated(int[] sequence, long packedArea) {}
 
     private static final class EvaluationCache {
-        private final Instance instance;
-        private final Map<Integer, Item> itemById;
-        private final PackingDecoder decoder;
         private final SearchLimit limit;
         private final long start;
-        private final Map<SequenceKey, Solution> cache = new HashMap<>();
+        private final DecodingCache cache;
         private long evaluations;
         private long cacheHits;
 
         private EvaluationCache(
-                Instance instance, Map<Integer, Item> itemById,
+                Instance instance,
                 PackingDecoder decoder, SearchLimit limit, long start) {
-            this.instance = instance;
-            this.itemById = itemById;
-            this.decoder = decoder;
             this.limit = limit;
             this.start = start;
+            this.cache = new DecodingCache(instance, decoder);
         }
 
         private boolean canEvaluate() {
@@ -189,36 +180,20 @@ public final class IteratedLocalSearchSolver
         }
 
         private Evaluated evaluate(int[] sequence) {
-            SequenceKey key = new SequenceKey(sequence);
-            Solution cached = cache.get(key);
+            Long cached = cache.get(sequence);
             if (cached != null) {
                 cacheHits++;
                 return new Evaluated(sequence.clone(), cached);
             }
             if (!canEvaluate()) return null;
-            List<Item> ordered = new ArrayList<>(sequence.length);
-            for (int id : sequence) ordered.add(itemById.get(id));
-            Solution solution = decoder.solveInPriorityOrder(instance, ordered);
+            long area = cache.areaOf(sequence);
             evaluations++;
-            cache.put(key, solution);
-            return new Evaluated(sequence.clone(), solution);
-        }
-    }
-
-    private static final class SequenceKey {
-        private final int[] values;
-        private final int hash;
-
-        private SequenceKey(int[] values) {
-            this.values = values.clone();
-            this.hash = Arrays.hashCode(this.values);
+            return new Evaluated(sequence.clone(), area);
         }
 
-        @Override public int hashCode() { return hash; }
-
-        @Override
-        public boolean equals(Object other) {
-            return other instanceof SequenceKey key && Arrays.equals(values, key.values);
+        /** 收尾时解码历史最优排列，拿到完整布局。 */
+        private Solution solve(int[] sequence) {
+            return cache.solve(sequence);
         }
     }
 }

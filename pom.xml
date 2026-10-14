@@ -18,6 +18,9 @@
         <maven.surefire.version>3.5.2</maven.surefire.version>
         <maven.jar.version>3.4.2</maven.jar.version>
         <jacoco.version>0.8.15</jacoco.version>
+        <jmh.version>1.37</jmh.version>
+        <build.helper.version>3.6.0</build.helper.version>
+        <exec.version>3.5.0</exec.version>
     </properties>
 
     <dependencies>
@@ -104,4 +107,88 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+          性能基准仅在显式启用时构建与运行：
+              ./mvnw -Pbench verify
+          基准源码放在 src/jmh/java，作为测试源根编译，因此不会进入生产 JAR，
+          也不参与 JaCoCo 覆盖率统计；默认 ./mvnw clean verify 完全不触碰它。
+        -->
+        <profile>
+            <id>bench</id>
+            <dependencies>
+                <dependency>
+                    <groupId>org.openjdk.jmh</groupId>
+                    <artifactId>jmh-core</artifactId>
+                    <version>${jmh.version}</version>
+                    <scope>test</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.openjdk.jmh</groupId>
+                    <artifactId>jmh-generator-annprocess</artifactId>
+                    <version>${jmh.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <!--
+                      JDK 23 起默认不再从 classpath 发现注解处理器，必须显式声明
+                      processor path，否则 JMH 的 BenchmarkList 不会生成。
+                    -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <version>${maven.compiler.version}</version>
+                        <configuration>
+                            <annotationProcessorPaths>
+                                <path>
+                                    <groupId>org.openjdk.jmh</groupId>
+                                    <artifactId>jmh-generator-annprocess</artifactId>
+                                    <version>${jmh.version}</version>
+                                </path>
+                            </annotationProcessorPaths>
+                            <compilerArgs>
+                                <arg>-proc:full</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>${build.helper.version}</version>
+                        <executions>
+                            <execution>
+                                <id>add-jmh-source</id>
+                                <phase>generate-test-sources</phase>
+                                <goals>
+                                    <goal>add-test-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>src/jmh/java</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!--
+                      JMH 必须在独立 JVM 中运行：exec:java 会在 Maven 插件自身的类加载器里
+                      执行，JMH 枚举不到基准。这里使用 exec:exec（fork 真实 JVM）并带上测试类路径。
+                    -->
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>${exec.version}</version>
+                        <configuration>
+                            <executable>java</executable>
+                            <classpathScope>test</classpathScope>
+                            <commandlineArgs>-classpath %classpath org.openjdk.jmh.Main ${jmh.args}</commandlineArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

@@ -32,7 +32,8 @@ public final class ExperimentRunner {
             long budgetValue,
             boolean repeatDeterministic,
             PackingDecoderType decoderType,
-            boolean resume) {
+            boolean resume,
+            int parallelism) {
         public Options(
                 Path dataDirectory, Path outputDirectory, List<AlgorithmId> algorithms,
                 boolean rotationAllowed, ItemOrder order, List<Long> seeds,
@@ -40,7 +41,7 @@ public final class ExperimentRunner {
                 String budgetKind, long budgetValue, boolean repeatDeterministic) {
             this(dataDirectory, outputDirectory, algorithms, rotationAllowed, order, seeds,
                     profile, searchLimit, experimentName, budgetKind, budgetValue,
-                    repeatDeterministic, PackingDecoderType.SKYLINE, false);
+                    repeatDeterministic, PackingDecoderType.SKYLINE, false, 1);
         }
 
         public Options {
@@ -63,6 +64,23 @@ public final class ExperimentRunner {
             seeds = List.copyOf(seeds);
             if (algorithms.isEmpty()) throw new IllegalArgumentException("算法列表不能为空");
             if (seeds.isEmpty()) throw new IllegalArgumentException("随机种子列表不能为空");
+            if (parallelism < 1) throw new IllegalArgumentException("并行度必须为正数：" + parallelism);
+            if (parallelism > 1 && "TIME_MS".equals(budgetKind)) {
+                throw new IllegalArgumentException(
+                        "时间预算实验不能并行：并行会让算法争抢CPU，耗时不再公平");
+            }
+        }
+
+        /** 默认串行的便捷构造器，保持既有调用点不变。 */
+        public Options(
+                Path dataDirectory, Path outputDirectory, List<AlgorithmId> algorithms,
+                boolean rotationAllowed, ItemOrder order, List<Long> seeds,
+                ExperimentProfile profile, SearchLimit searchLimit, String experimentName,
+                String budgetKind, long budgetValue, boolean repeatDeterministic,
+                PackingDecoderType decoderType, boolean resume) {
+            this(dataDirectory, outputDirectory, algorithms, rotationAllowed, order, seeds,
+                    profile, searchLimit, experimentName, budgetKind, budgetValue,
+                    repeatDeterministic, decoderType, resume, 1);
         }
     }
 
@@ -83,47 +101,37 @@ public final class ExperimentRunner {
         } else if (options.repeatDeterministic()) {
             warmUpRepeatedAlgorithms(options, instances.get(0));
         }
-        int total = 0;
-        for (AlgorithmId algorithm : options.algorithms()) {
-            total += instances.size() * repetitions(algorithm, options);
-        }
-        int completed = runs.size();
-
+        // 任务清单按「串行执行顺序」展开并按序编号；并行执行时结果写入下标寻址的数组，
+        // 因此并行产出的 runs 列表与串行逐位相同。
+        List<Task> tasks = new ArrayList<>();
         for (Instance instance : instances) {
             for (AlgorithmId algorithm : options.algorithms()) {
                 int repetitions = repetitions(algorithm, options);
                 for (int repetition = 0; repetition < repetitions; repetition++) {
                     long seed = options.seeds().get(repetition);
                     String key = runKey(algorithm, instance.name(), repetition + 1, seed);
-                    if (completedKeys.contains(key)) continue;
-                    PackingAlgorithm solver = SolverFactory.create(
-                            algorithm,
-                            options.rotationAllowed(),
-                            options.order(),
-                            seed,
-                            options.profile(),
-                            algorithm.stochastic() ? options.searchLimit() : SearchLimit.unlimited(),
-                            options.decoderType());
-                    Solution solution = solver.solve(instance);
-                    ValidationResult validation = validator.validate(
-                            instance, solution, options.rotationAllowed());
-                    RunObservation observation = new RunObservation(
-                            options.experimentName(), options.budgetKind(), options.budgetValue(),
-                            algorithm, instance, repetition + 1, seed, solution,
-                            validation.valid(), String.join(" | ", validation.errors()),
-                            SolverIntrospection.evaluations(solver),
-                            SolverIntrospection.iterations(solver),
-                            SolverIntrospection.maxRectsBestStatistics(solver),
-                            SolverIntrospection.trace(solver, solution.packedArea()));
-                    runs.add(observation);
-                    completedKeys.add(key);
-                    if (options.resume()) RunCheckpoint.save(checkpointFile, options, runs);
-                    completed++;
-                    System.out.printf("[%d/%d] %-8s %-20s %.4f%%  %.2f ms  eval=%d  %s%n",
-                            completed, total, instance.name(), algorithm.displayName(),
-                            observation.utilizationPercent(), observation.elapsedMilliseconds(),
-                            observation.evaluations(), validation.valid() ? "通过" : "失败");
+                    if (!completedKeys.contains(key)) {
+                        tasks.add(new Task(instance, algorithm, repetition + 1, seed));
+                    }
                 }
+            }
+        }
+        int total = completedKeys.size() + tasks.size();
+        int completed = completedKeys.size();
+
+        if (options.parallelism() > 1 && tasks.size() > 1) {
+            completed = runParallel(
+                    tasks, options, validator, checkpointFile, runs, completed, total);
+        } else {
+            for (int index = 0; index < tasks.size(); index++) {
+                Task task = tasks.get(index);
+                RunObservation observation = execute(task, options, validator);
+                runs.add(observation);
+                System.out.printf("[%d/%d] %-8s %-20s %.4f%%  %.2f ms  eval=%d  %s%n",
+                        ++completed, total, task.instance().name(), task.algorithm().displayName(),
+                        observation.utilizationPercent(), observation.elapsedMilliseconds(),
+                        observation.evaluations(), observation.valid() ? "通过" : "失败");
+                if (options.resume()) RunCheckpoint.save(checkpointFile, options, runs);
             }
         }
 
@@ -137,6 +145,76 @@ public final class ExperimentRunner {
             throw new IllegalStateException("实验产生了" + failures + "个非法解，详见报告");
         }
         return List.copyOf(runs);
+    }
+
+    /** 一次独立运行：单实例、单算法、单重复。彼此之间无共享可变状态。 */
+    private record Task(Instance instance, AlgorithmId algorithm, int repetition, long seed) {}
+
+    /** 执行一次运行：自建求解器、校验、装箱成观测。线程安全（只依赖不可变的 options 与无状态的 validator）。 */
+    private static RunObservation execute(Task task, Options options, SolutionValidator validator) {
+        PackingAlgorithm solver = SolverFactory.create(
+                task.algorithm(),
+                options.rotationAllowed(),
+                options.order(),
+                task.seed(),
+                options.profile(),
+                task.algorithm().stochastic() ? options.searchLimit() : SearchLimit.unlimited(),
+                options.decoderType());
+        Solution solution = solver.solve(task.instance());
+        ValidationResult validation = validator.validate(
+                task.instance(), solution, options.rotationAllowed());
+        return new RunObservation(
+                options.experimentName(), options.budgetKind(), options.budgetValue(),
+                task.algorithm(), task.instance(), task.repetition(), task.seed(), solution,
+                validation.valid(), String.join(" | ", validation.errors()),
+                SolverIntrospection.evaluations(solver),
+                SolverIntrospection.iterations(solver),
+                SolverIntrospection.maxRectsBestStatistics(solver),
+                SolverIntrospection.trace(solver, solution.packedArea()));
+    }
+
+    /**
+     * 并行执行独立运行。按 Future 的下标顺序收集结果，因此 {@code runs} 的顺序与串行逐位一致，
+     * 进度打印、断点写入也都在调用线程上按序进行，不会交错。
+     */
+    private static int runParallel(
+            List<Task> tasks, Options options, SolutionValidator validator,
+            Path checkpointFile, List<RunObservation> runs, int completed, int total)
+            throws IOException {
+
+        int parallelism = Math.min(options.parallelism(), tasks.size());
+        System.out.printf("并行执行：%d个任务，并行度=%d%n", tasks.size(), parallelism);
+        java.util.concurrent.ExecutorService pool =
+                java.util.concurrent.Executors.newFixedThreadPool(parallelism);
+        int progressed = completed;
+        try {
+            List<java.util.concurrent.Future<RunObservation>> futures = new ArrayList<>(tasks.size());
+            for (Task task : tasks) {
+                futures.add(pool.submit(() -> execute(task, options, validator)));
+            }
+            // 按下标收集：即使线程 3 先完成也先等 0、1、2，从而得到与串行逐位一致的顺序。
+            for (int index = 0; index < futures.size(); index++) {
+                RunObservation observation;
+                try {
+                    observation = futures.get(index).get();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("并行实验被中断", e);
+                } catch (java.util.concurrent.ExecutionException e) {
+                    throw new IllegalStateException("并行实验任务失败", e.getCause());
+                }
+                runs.add(observation);
+                System.out.printf("[%d/%d] %-8s %-20s %.4f%%  %.2f ms  eval=%d  %s%n",
+                        ++progressed, total, observation.instance().name(),
+                        observation.algorithm().displayName(),
+                        observation.utilizationPercent(), observation.elapsedMilliseconds(),
+                        observation.evaluations(), observation.valid() ? "通过" : "失败");
+                if (options.resume()) RunCheckpoint.save(checkpointFile, options, runs);
+            }
+        } finally {
+            pool.shutdown();
+        }
+        return progressed;
     }
 
     private static void warmUpTimedAlgorithms(Options options, Instance instance) {

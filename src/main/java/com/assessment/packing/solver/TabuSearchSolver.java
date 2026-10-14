@@ -89,18 +89,21 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
             return new Solution(name(), only.placements(), System.nanoTime() - start);
         }
 
-        Map<Integer, Item> itemById = new HashMap<>();
         int maxId = 0;
-        for (Item item : instance.items()) {
-            itemById.put(item.id(), item);
-            maxId = Math.max(maxId, item.id());
-        }
+        for (Item item : instance.items()) maxId = Math.max(maxId, item.id());
 
-        Solution currentSolution = evaluate(instance, currentSequence, itemById, decoder);
+        // 重复排列的复用集中在这里；预算与计数口径仍由下面的循环条件决定。
+        DecodingCache cache = new DecodingCache(instance, decoder);
+        // 只有 PLACEMENT_ATTRIBUTE 需要知道每个零件落在哪里，其余模式只比较面积即可。
+        boolean needsPlacements = mode == TabuMode.PLACEMENT_ATTRIBUTE;
+        Solution currentSolution = needsPlacements ? cache.solve(currentSequence) : null;
+        long currentArea = needsPlacements
+                ? currentSolution.packedArea()
+                : cache.areaOf(currentSequence);
         int[] bestSequence = currentSequence.clone();
-        Solution bestSolution = currentSolution;
+        long bestArea = currentArea;
         List<ConvergencePoint> trace = new ArrayList<>();
-        trace.add(new ConvergencePoint(0, 0, bestSolution.packedArea()));
+        trace.add(new ConvergencePoint(0, 0, bestArea));
 
         FullStateMemory fullStateMemory = new FullStateMemory(config.tabuTenure());
         if (mode == TabuMode.FULL_STATE) {
@@ -127,7 +130,7 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
         for (int iteration = 0;
                 iteration < config.maxIterations()
                         && noImprovement < config.maxNoImprovement()
-                        && bestSolution.packedArea() < instance.binArea()
+                        && bestArea < instance.binArea()
                         && evaluated < searchLimit.maxEvaluations()
                         && !searchLimit.timeReached(start);
                 iteration++) {
@@ -146,8 +149,8 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
                     && evaluated < searchLimit.maxEvaluations()
                     && !searchLimit.timeReached(start); examined++) {
                 Neighbor candidate = evaluateSwap(
-                        swaps.get(examined), currentSequence, iteration, instance, itemById,
-                        decoder, bestSolution.packedArea(), fullStateMemory,
+                        swaps.get(examined), currentSequence, iteration, instance,
+                        cache, bestArea, fullStateMemory,
                         moveTabuUntil, positionTabuUntil, orderTabuUntil,
                         adjacencyTabuUntil, placementTabuUntil);
                 if (candidate.evaluated) evaluated++;
@@ -164,8 +167,8 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
                         && evaluated < searchLimit.maxEvaluations()
                         && !searchLimit.timeReached(start); examined++) {
                     Neighbor candidate = evaluateSwap(
-                            swaps.get(examined), currentSequence, iteration, instance, itemById,
-                            decoder, bestSolution.packedArea(), fullStateMemory,
+                            swaps.get(examined), currentSequence, iteration, instance,
+                            cache, bestArea, fullStateMemory,
                             moveTabuUntil, positionTabuUntil, orderTabuUntil,
                             adjacencyTabuUntil, placementTabuUntil);
                     if (candidate.evaluated) evaluated++;
@@ -178,11 +181,10 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
                 // 强属性可能暂时封锁全部交换；让禁忌时钟前进，但不伪造特赦或强行违规。
                 stalled++;
                 noImprovement++;
-                trace.add(new ConvergencePoint(completedIterations, evaluated, bestSolution.packedArea()));
+                trace.add(new ConvergencePoint(completedIterations, evaluated, bestArea));
                 continue;
             }
-            long previousArea = currentSolution.packedArea();
-            if (bestNeighbor.solution.packedArea() < previousArea) acceptedWorse++;
+            if (bestNeighbor.area < currentArea) acceptedWorse++;
             if (bestNeighbor.aspiration) aspirations++;
 
             registerAcceptedMove(
@@ -190,21 +192,22 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
                     fullStateMemory, moveTabuUntil, positionTabuUntil,
                     orderTabuUntil, adjacencyTabuUntil, placementTabuUntil);
             currentSequence = bestNeighbor.sequence;
-            currentSolution = bestNeighbor.solution;
+            currentArea = bestNeighbor.area;
+            if (needsPlacements) currentSolution = bestNeighbor.solution;
 
-            if (currentSolution.packedArea() > bestSolution.packedArea()) {
+            if (currentArea > bestArea) {
                 bestSequence = currentSequence.clone();
-                bestSolution = currentSolution;
+                bestArea = currentArea;
                 improvements++;
                 noImprovement = 0;
             } else {
                 noImprovement++;
             }
-            trace.add(new ConvergencePoint(completedIterations, evaluated, bestSolution.packedArea()));
+            trace.add(new ConvergencePoint(completedIterations, evaluated, bestArea));
         }
 
         // 重新解码保存的历史最好序列，确保最终布局与最终序列严格对应。
-        Solution verifiedBest = evaluate(instance, bestSequence, itemById, decoder);
+        Solution verifiedBest = cache.solve(bestSequence);
         lastStatistics = new TabuSearchStatistics(
                 completedIterations, evaluated, tabuHits, improvements, acceptedWorse,
                 aspirations, expanded, stalled);
@@ -217,8 +220,7 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
             int[] current,
             int iteration,
             Instance instance,
-            Map<Integer, Item> itemById,
-            PackingDecoder decoder,
+            DecodingCache cache,
             long bestArea,
             FullStateMemory fullStateMemory,
             int[][] moveTabuUntil,
@@ -237,7 +239,12 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
             return Neighbor.rejected(swap, candidateSequence, itemA, itemB);
         }
 
-        Solution candidateSolution = evaluate(instance, candidateSequence, itemById, decoder);
+        Solution candidateSolution = mode == TabuMode.PLACEMENT_ATTRIBUTE
+                ? cache.solve(candidateSequence)
+                : null;
+        long candidateArea = candidateSolution != null
+                ? candidateSolution.packedArea()
+                : cache.areaOf(candidateSequence);
         boolean tabu = switch (mode) {
             case FULL_STATE -> false;
             case MOVE -> moveTabuUntil[itemA][itemB] > iteration;
@@ -251,10 +258,10 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
             case PLACEMENT_ATTRIBUTE -> containsForbiddenPlacement(
                     candidateSequence, candidateSolution, iteration, placementTabuUntil);
         };
-        boolean aspiration = tabu && candidateSolution.packedArea() > bestArea;
+        boolean aspiration = tabu && candidateArea > bestArea;
         boolean admissible = !tabu || aspiration;
         return new Neighbor(
-                swap, candidateSequence, candidateSolution, itemA, itemB,
+                swap, candidateSequence, candidateArea, candidateSolution, itemA, itemB,
                 tabu, true, admissible, aspiration);
     }
 
@@ -407,8 +414,8 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
 
     private static boolean betterNeighbor(Neighbor candidate, Neighbor incumbent) {
         if (incumbent == null) return true;
-        if (candidate.solution.packedArea() != incumbent.solution.packedArea()) {
-            return candidate.solution.packedArea() > incumbent.solution.packedArea();
+        if (candidate.area != incumbent.area) {
+            return candidate.area > incumbent.area;
         }
         // 面积相同时，稳定地选择字典序更小的完整排列。
         for (int i = 0; i < candidate.sequence.length; i++) {
@@ -417,21 +424,6 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
             }
         }
         return false;
-    }
-
-    private static Solution evaluate(
-            Instance instance,
-            int[] sequence,
-            Map<Integer, Item> itemById,
-            PackingDecoder decoder) {
-
-        List<Item> priority = new ArrayList<>(sequence.length);
-        for (int id : sequence) {
-            Item item = itemById.get(id);
-            if (item == null) throw new IllegalStateException("序列包含不存在的零件编号：" + id);
-            priority.add(item);
-        }
-        return decoder.solveInPriorityOrder(instance, priority);
     }
 
     private static List<Swap> allSwaps(int length) {
@@ -444,9 +436,11 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
 
     private record Swap(int firstPosition, int secondPosition) {}
 
+    /** {@code solution} 仅在 PLACEMENT_ATTRIBUTE 模式下非空——只有该模式需要放置位置。 */
     private record Neighbor(
             Swap swap,
             int[] sequence,
+            long area,
             Solution solution,
             int itemA,
             int itemB,
@@ -455,7 +449,7 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
             boolean admissible,
             boolean aspiration) {
         private static Neighbor rejected(Swap swap, int[] sequence, int itemA, int itemB) {
-            return new Neighbor(swap, sequence, null, itemA, itemB, true, false, false, false);
+            return new Neighbor(swap, sequence, 0, null, itemA, itemB, true, false, false, false);
         }
     }
 

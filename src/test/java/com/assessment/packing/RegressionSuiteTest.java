@@ -2,6 +2,8 @@ package com.assessment.packing;
 
 import com.assessment.packing.solver.AntColonyMathTest;
 import com.assessment.packing.experiment.CsvEscaperTest;
+import com.assessment.packing.solver.DecodeEquivalenceTest;
+import com.assessment.packing.solver.DecodingCacheTest;
 import com.assessment.packing.solver.GeneticOperatorsTest;
 import com.assessment.packing.solver.GuillotineSolverTest;
 import com.assessment.packing.solver.ItemOrderingTest;
@@ -30,6 +32,8 @@ final class RegressionSuiteTest {
                 suite("GuillotineSolver", GuillotineSolverTest::main),
                 suite("MaxRectsSolver", MaxRectsSolverTest::main),
                 suite("MaxRectsGeometry", MaxRectsGeometryTest::main),
+                suite("DecodingCache", DecodingCacheTest::main),
+                suite("DecodeEquivalence", DecodeEquivalenceTest::main),
                 suite("SkylineTabuSearch", SkylineTabuSearchTest::main),
                 suite("SkylineSimulatedAnnealing", SkylineSimulatedAnnealingTest::main),
                 suite("SimulatedAnnealingMath", SimulatedAnnealingMathTest::main),

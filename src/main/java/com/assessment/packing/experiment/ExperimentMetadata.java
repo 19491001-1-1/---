@@ -25,6 +25,7 @@ final class ExperimentMetadata {
                 searchLimit=%s
                 budgetKind=%s
                 budgetValue=%d
+                parallelism=%d
                 javaVersion=%s
                 os=%s
                 """.formatted(
@@ -32,6 +33,7 @@ final class ExperimentMetadata {
                 options.dataDirectory().toAbsolutePath().normalize(), options.algorithms(),
                 options.decoderType(), options.rotationAllowed(), options.order(), options.seeds(),
                 options.profile(), options.searchLimit(), options.budgetKind(), options.budgetValue(),
+                options.parallelism(),
                 System.getProperty("java.version"), System.getProperty("os.name"));
         Files.writeString(output.resolve("experiment-metadata.properties"), text,
                 StandardCharsets.UTF_8);

@@ -180,10 +180,8 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
             return new Solution(name(), only.placements(), System.nanoTime() - start);
         }
 
-        Map<Integer, Item> itemById = new HashMap<>();
-        for (Item item : instance.items()) itemById.put(item.id(), item);
         FitnessEvaluator evaluator = new FitnessEvaluator(
-                instance, itemById, decoder, searchLimit, start);
+                instance, decoder, searchLimit, start);
         Random random = new Random(config.seed());
         Random localRandom = new Random(config.seed() ^ 0x6A09E667F3BCC909L
                 ^ (hybridMode == null ? 0L : hybridMode.ordinal()));
@@ -342,7 +340,7 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
                     completedGenerations, evaluator.evaluations, historicalBest.packedArea));
         }
 
-        Solution verifiedBest = evaluator.decode(historicalBest.sequence);
+        Solution verifiedBest = evaluator.solve(historicalBest.sequence);
         lastStatistics = new GeneticAlgorithmStatistics(
                 completedGenerations,
                 effectivePopulationSize,
@@ -847,32 +845,25 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
     }
 
     private static final class FitnessEvaluator {
-        private final Instance instance;
-        private final Map<Integer, Item> itemById;
-        private final PackingDecoder decoder;
         private final SearchLimit searchLimit;
         private final long startNanos;
-        private final Map<SequenceKey, Long> cache = new HashMap<>();
+        private final DecodingCache cache;
         private long evaluations;
         private long cacheHits;
         private boolean limitReached;
 
         private FitnessEvaluator(
                 Instance instance,
-                Map<Integer, Item> itemById,
                 PackingDecoder decoder,
                 SearchLimit searchLimit,
                 long startNanos) {
-            this.instance = instance;
-            this.itemById = itemById;
-            this.decoder = decoder;
             this.searchLimit = searchLimit;
             this.startNanos = startNanos;
+            this.cache = new DecodingCache(instance, decoder);
         }
 
         private long packedArea(int[] sequence) {
-            SequenceKey key = new SequenceKey(sequence);
-            Long cached = cache.get(key);
+            Long cached = cache.get(sequence);
             if (cached != null) {
                 cacheHits++;
                 return cached;
@@ -882,20 +873,19 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
                 limitReached = true;
                 return Long.MIN_VALUE;
             }
-            long area = decode(sequence).packedArea();
-            cache.put(key, area);
+            long area = decode(sequence);
+            cache.put(sequence, area);
             evaluations++;
             return area;
         }
 
-        private Solution decode(int[] sequence) {
-            List<Item> priority = new ArrayList<>(sequence.length);
-            for (int id : sequence) {
-                Item item = itemById.get(id);
-                if (item == null) throw new IllegalStateException("序列包含不存在的零件编号：" + id);
-                priority.add(item);
-            }
-            return decoder.solveInPriorityOrder(instance, priority);
+        private long decode(int[] sequence) {
+            return cache.areaOf(sequence);
+        }
+
+        /** 收尾时解码历史最优排列，拿到完整布局。 */
+        private Solution solve(int[] sequence) {
+            return cache.solve(sequence);
         }
     }
 }

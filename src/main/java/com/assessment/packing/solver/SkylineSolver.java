@@ -7,10 +7,8 @@ import com.assessment.packing.model.Solution;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.PriorityQueue;
-import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -49,14 +47,17 @@ public final class SkylineSolver implements PackingAlgorithm, PackingDecoder {
         long start = System.nanoTime();
         nextSerial = 0;
 
-        Set<Integer> usedIds = new HashSet<>();
+        // 用按编号索引的布尔数组代替 HashSet<Integer>：解码是搜索里最热的循环，
+        // 装箱与哈希在剖析中占据显著比例，而零件编号在实例内唯一，语义完全等价。
+        boolean[] used = new boolean[maxId(priorityItems) + 1];
+        int usedCount = 0;
         List<Placement> placements = new ArrayList<>();
 
         TreeMap<Integer, Segment> byX = new TreeMap<>();
         PriorityQueue<Segment> heap = new PriorityQueue<>(LOWEST_LEFTMOST);
         addSegment(new Segment(0, 0, instance.binWidth(), nextSerial++), byX, heap);
 
-        while (!heap.isEmpty() && usedIds.size() < priorityItems.size()) {
+        while (!heap.isEmpty() && usedCount < priorityItems.size()) {
             Segment current = pollActive(heap);
             if (current == null) break;
 
@@ -66,7 +67,7 @@ public final class SkylineSolver implements PackingAlgorithm, PackingDecoder {
             int rightWall = right == null ? instance.binHeight() - current.y : right.y - current.y;
 
             Choice choice = chooseItem(
-                    priorityItems, usedIds, current, leftWall, rightWall, instance.binHeight());
+                    priorityItems, used, current, leftWall, rightWall, instance.binHeight());
 
             if (choice == null) {
                 raiseUnusableSegment(current, left, right, byX, heap);
@@ -76,7 +77,8 @@ public final class SkylineSolver implements PackingAlgorithm, PackingDecoder {
             boolean placeRight = shouldPlaceRight(choice.score, leftWall, rightWall);
             int placedX = placeRight ? current.x + current.length - choice.width : current.x;
             placements.add(new Placement(choice.item, placedX, current.y, choice.rotated));
-            usedIds.add(choice.item.id());
+            used[choice.item.id()] = true;
+            usedCount++;
 
             replaceAfterPlacement(current, choice, placeRight, byX, heap);
             normalizeAround(placedX, byX, heap);
@@ -85,31 +87,65 @@ public final class SkylineSolver implements PackingAlgorithm, PackingDecoder {
         return new Solution(name(), placements, System.nanoTime() - start);
     }
 
+    private static int maxId(List<Item> items) {
+        int maxId = 0;
+        for (Item item : items) maxId = Math.max(maxId, item.id());
+        return maxId;
+    }
+
+    /**
+     * 在未使用零件中挑选评分最高的候选。
+     *
+     * <p>只保留「当前最优」的标量字段，不每个改进都新建 {@link Choice} 对象——
+     * 这个方法在一次解码里被调用上千次，是剖析中最热的一段。
+     */
     private Choice chooseItem(
             List<Item> items,
-            Set<Integer> usedIds,
+            boolean[] used,
             Segment skyline,
             int leftWall,
             int rightWall,
             int binHeight) {
 
-        Choice best = null;
-        for (Item item : items) {
-            if (usedIds.contains(item.id())) continue;
+        Item bestItem = null;
+        int bestWidth = 0;
+        int bestHeight = 0;
+        boolean bestRotated = false;
+        // 合法评分为 0~7，-1 专表「放不下」；用 -1 作哨兵即可把不可放候选排除在外，
+        // 严格大于保证并列时仍是排列中靠前的零件优先。
+        int bestScore = -1;
 
-            int normalScore = score(item.width(), item.height(), skyline, leftWall, rightWall, binHeight);
-            if (normalScore >= 0 && (best == null || normalScore > best.score)) {
-                best = new Choice(item, item.width(), item.height(), false, normalScore);
+        int length = skyline.length;
+        int skylineY = skyline.y;
+        for (Item item : items) {
+            if (used[item.id()]) continue;
+
+            int width = item.width();
+            int height = item.height();
+            int normalScore = score(width, height, length, skylineY, leftWall, rightWall, binHeight);
+            if (normalScore > bestScore) {
+                bestItem = item;
+                bestWidth = width;
+                bestHeight = height;
+                bestRotated = false;
+                bestScore = normalScore;
             }
 
-            if (rotationAllowed && item.width() != item.height()) {
-                int rotatedScore = score(item.height(), item.width(), skyline, leftWall, rightWall, binHeight);
-                if (rotatedScore >= 0 && (best == null || rotatedScore > best.score)) {
-                    best = new Choice(item, item.height(), item.width(), true, rotatedScore);
+            if (rotationAllowed && width != height) {
+                int rotatedScore = score(
+                        height, width, length, skylineY, leftWall, rightWall, binHeight);
+                if (rotatedScore > bestScore) {
+                    bestItem = item;
+                    bestWidth = height;
+                    bestHeight = width;
+                    bestRotated = true;
+                    bestScore = rotatedScore;
                 }
             }
         }
-        return best;
+        return bestItem == null
+                ? null
+                : new Choice(bestItem, bestWidth, bestHeight, bestRotated, bestScore);
     }
 
     static int score(
@@ -146,16 +182,6 @@ public final class SkylineSolver implements PackingAlgorithm, PackingDecoder {
         throw new IllegalStateException("未覆盖的评分情况：width=" + width + ", height=" + height
                 + ", skylineLength=" + skylineLength + ", leftWall=" + leftWall
                 + ", rightWall=" + rightWall);
-    }
-
-    private static int score(
-            int width,
-            int height,
-            Segment skyline,
-            int leftWall,
-            int rightWall,
-            int binHeight) {
-        return score(width, height, skyline.length, skyline.y, leftWall, rightWall, binHeight);
     }
 
     static boolean shouldPlaceRight(int score, int leftWall, int rightWall) {

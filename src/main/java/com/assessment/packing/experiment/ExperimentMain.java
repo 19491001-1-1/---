@@ -1,6 +1,7 @@
 package com.assessment.packing.experiment;
 
 import com.assessment.packing.solver.ItemOrder;
+import com.assessment.packing.solver.PackingDecoderType;
 import com.assessment.packing.solver.SearchLimit;
 
 import java.nio.file.Path;
@@ -163,7 +164,19 @@ public final class ExperimentMain {
         if (repetitions <= 0) throw new IllegalArgumentException("重复次数必须为正数");
         return new ExperimentRunner.Options(
                 data, output, algorithms, true, ItemOrder.AREA_DESC,
-                seeds(repetitions, baseSeed), profile, limit, name, budgetKind, budgetValue, false);
+                seeds(repetitions, baseSeed), profile, limit, name, budgetKind, budgetValue, false,
+                PackingDecoderType.SKYLINE, false, parallelism());
+    }
+
+    /**
+     * 并行度为显式开关：默认串行（1），与既有产出逐位一致。
+     * 只有在设置环境变量 {@code PACKING_PARALLELISM} 时才并行；
+     * 时间预算实验会因公平性被 {@link ExperimentRunner.Options} 拒绝。
+     */
+    private static int parallelism() {
+        String value = System.getenv("PACKING_PARALLELISM");
+        if (value == null || value.isBlank()) return 1;
+        return Integer.parseInt(value.trim());
     }
 
     private static List<Long> seeds(int repetitions, long baseSeed) {

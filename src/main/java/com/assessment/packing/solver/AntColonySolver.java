@@ -7,9 +7,7 @@ import com.assessment.packing.model.Solution;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 
 /** 使用相邻信息素构造零件优先级排列，再交给可注入排样解码器的蚁群算法。 */
@@ -177,7 +175,7 @@ public final class AntColonySolver
                     completedIterations, evaluator.evaluations, bestArea));
         }
 
-        Solution verifiedBest = evaluator.decode(bestSequence);
+        Solution verifiedBest = evaluator.solve(bestSequence);
         lastStatistics = new AntColonyStatistics(
                 completedIterations,
                 config.antCount(),
@@ -299,12 +297,11 @@ public final class AntColonySolver
     private record Ant(int[] sequence, long packedArea) {}
 
     private static final class FitnessEvaluator {
-        private final Instance instance;
         private final List<Item> items;
         private final PackingDecoder decoder;
         private final SearchLimit limit;
         private final long startNanos;
-        private final Map<SequenceKey, Long> cache = new HashMap<>();
+        private final DecodingCache cache;
         private long evaluations;
         private long cacheHits;
 
@@ -314,23 +311,23 @@ public final class AntColonySolver
                 PackingDecoder decoder,
                 SearchLimit limit,
                 long startNanos) {
-            this.instance = instance;
             this.items = items;
             this.decoder = decoder;
             this.limit = limit;
             this.startNanos = startNanos;
+            this.cache = new DecodingCache(instance, decoder);
         }
 
         private long evaluateInitial(int[] sequence) {
-            long area = decode(sequence).packedArea();
-            cache.put(new SequenceKey(sequence), area);
+            long area = decode(sequence);
+            cache.put(toItemSequence(sequence), area);
             evaluations++;
             return area;
         }
 
         private Long evaluate(int[] sequence) {
-            SequenceKey key = new SequenceKey(sequence);
-            Long cached = cache.get(key);
+            int[] ids = toItemSequence(sequence);
+            Long cached = cache.get(ids);
             if (cached != null) {
                 cacheHits++;
                 return cached;
@@ -338,42 +335,35 @@ public final class AntColonySolver
             if (evaluations >= limit.maxEvaluations() || limit.timeReached(startNanos)) {
                 return null;
             }
-            long area = decode(sequence).packedArea();
-            cache.put(key, area);
+            long area = decode(sequence);
+            cache.put(ids, area);
             evaluations++;
             return area;
         }
 
-        private Solution decode(int[] sequence) {
-            List<Item> priority = new ArrayList<>(sequence.length);
-            for (int index : sequence) {
+        private long decode(int[] indices) {
+            return cache.areaOf(toItemSequence(indices));
+        }
+
+        /** 收尾时解码历史最优排列，拿到完整布局。 */
+        private Solution solve(int[] indices) {
+            return cache.solve(toItemSequence(indices));
+        }
+
+        /**
+         * 蚁群内部使用零件在实例中的下标而非零件编号，这里转换成编号后交给共享缓存，
+         * 从而与其它搜索算法共用同一套缓存键。
+         */
+        private int[] toItemSequence(int[] indices) {
+            int[] ids = new int[indices.length];
+            for (int i = 0; i < indices.length; i++) {
+                int index = indices[i];
                 if (index < 0 || index >= items.size()) {
                     throw new IllegalStateException("蚁群排列包含非法零件下标：" + index);
                 }
-                priority.add(items.get(index));
+                ids[i] = items.get(index).id();
             }
-            return decoder.solveInPriorityOrder(instance, priority);
-        }
-    }
-
-    private static final class SequenceKey {
-        private final int[] sequence;
-        private final int hash;
-
-        private SequenceKey(int[] sequence) {
-            this.sequence = sequence.clone();
-            this.hash = Arrays.hashCode(this.sequence);
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return other instanceof SequenceKey key
-                    && Arrays.equals(sequence, key.sequence);
-        }
-
-        @Override
-        public int hashCode() {
-            return hash;
+            return ids;
         }
     }
 }

@@ -102,7 +102,17 @@ java -jar target/rectangle-packing-1.0.0.jar --config config/example.properties
 ./scripts/run-experiments.sh sweep gcut01 results/parameter-sweep gcut3 3 20261012 STANDARD
 ```
 
-详细字段和统计口径见 [实验与图表使用说明](docs/实验与图表使用说明.md)。
+实验默认串行。独立运行之间可并行（不进入单次搜索内部），输出的运行列表与串行完全一致：
+
+```bash
+# 并行度8
+PACKING_PARALLELISM=8 ./scripts/run-experiments.sh benchmark gcut01 results/benchmark 5 20261012 STANDARD
+```
+
+时间预算实验（`fair-time`）不允许并行：并行会争抢 CPU，耗时不再公平。
+
+详细字段和统计口径见 [实验与图表使用说明](docs/实验与图表使用说明.md)；
+搜索层的缓存、轻量评分与实测提速见 [性能优化记录](docs/性能优化记录.md)。
 
 ## 输出结构
 

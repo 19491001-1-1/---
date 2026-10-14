@@ -59,6 +59,30 @@ final class ExperimentInfrastructureTest {
         assertEquals(250L, options.budgetValue());
         assertFalse(options.resume());
         assertTrue(options.repeatDeterministic());
+        assertEquals(1, options.parallelism(), "未配置时应默认串行");
+    }
+
+    @Test
+    void acceptsParallelismAndRejectsUnfairCombination() throws IOException {
+        ExperimentRunner.Options parallel = ExperimentRunConfiguration.read(write("""
+                algorithms=ILS
+                repetitions=2
+                maxEvaluations=50
+                parallelism=4
+                """));
+        assertEquals(4, parallel.parallelism());
+
+        assertThrows(IllegalArgumentException.class, () -> ExperimentRunConfiguration.read(write("""
+                algorithms=ILS
+                repetitions=1
+                maxMilliseconds=12
+                parallelism=2
+                """)), "并行加时间预算必须被拒绝");
+        assertThrows(IllegalArgumentException.class, () -> ExperimentRunConfiguration.read(write("""
+                algorithms=ILS
+                repetitions=1
+                parallelism=0
+                """)));
     }
 
     @Test
