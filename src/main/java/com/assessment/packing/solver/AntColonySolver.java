@@ -214,22 +214,30 @@ public final class AntColonySolver
         int[] sequence = new int[itemCount];
         int previous = itemCount;
 
+        // beta*log(desirability) 与位置无关，整只蚂蚁只算一次；各 position 的两轮扫描原本
+        // 各算一遍 alpha*log(pheromone)，这里缓存到复用缓冲。这些量与原先逐次现算的值
+        // 是同一个 double（Math.log 确定、乘法确定），求和顺序也不变，故结果逐位相同。
+        double[] desirabilityWeight = new double[itemCount];
+        for (int candidate = 0; candidate < itemCount; candidate++) {
+            desirabilityWeight[candidate] = beta * Math.log(desirability[candidate]);
+        }
+        double[] logWeights = new double[itemCount];
+        double[] weights = new double[itemCount];
+
         for (int position = 0; position < itemCount; position++) {
             double maximumLogWeight = Double.NEGATIVE_INFINITY;
             for (int candidate = 0; candidate < itemCount; candidate++) {
                 if (used[candidate]) continue;
                 double logWeight = alpha * Math.log(pheromone[previous][candidate])
-                        + beta * Math.log(desirability[candidate]);
+                        + desirabilityWeight[candidate];
+                logWeights[candidate] = logWeight;
                 maximumLogWeight = Math.max(maximumLogWeight, logWeight);
             }
 
             double total = 0.0;
-            double[] weights = new double[itemCount];
             for (int candidate = 0; candidate < itemCount; candidate++) {
                 if (used[candidate]) continue;
-                double logWeight = alpha * Math.log(pheromone[previous][candidate])
-                        + beta * Math.log(desirability[candidate]);
-                weights[candidate] = Math.exp(logWeight - maximumLogWeight);
+                weights[candidate] = Math.exp(logWeights[candidate] - maximumLogWeight);
                 total += weights[candidate];
             }
 
