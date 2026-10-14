@@ -1,0 +1,196 @@
+package com.assessment.packing.experiment;
+
+import com.assessment.packing.io.InstanceReader;
+import com.assessment.packing.io.InstanceFiles;
+import com.assessment.packing.model.Instance;
+import com.assessment.packing.model.Solution;
+import com.assessment.packing.solver.ItemOrder;
+import com.assessment.packing.solver.PackingAlgorithm;
+import com.assessment.packing.solver.PackingDecoderType;
+import com.assessment.packing.solver.SearchLimit;
+import com.assessment.packing.validation.SolutionValidator;
+import com.assessment.packing.validation.ValidationResult;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+public final class ExperimentRunner {
+    public record Options(
+            Path dataDirectory,
+            Path outputDirectory,
+            List<AlgorithmId> algorithms,
+            boolean rotationAllowed,
+            ItemOrder order,
+            List<Long> seeds,
+            ExperimentProfile profile,
+            SearchLimit searchLimit,
+            String experimentName,
+            String budgetKind,
+            long budgetValue,
+            boolean repeatDeterministic,
+            PackingDecoderType decoderType,
+            boolean resume) {
+        public Options(
+                Path dataDirectory, Path outputDirectory, List<AlgorithmId> algorithms,
+                boolean rotationAllowed, ItemOrder order, List<Long> seeds,
+                ExperimentProfile profile, SearchLimit searchLimit, String experimentName,
+                String budgetKind, long budgetValue, boolean repeatDeterministic) {
+            this(dataDirectory, outputDirectory, algorithms, rotationAllowed, order, seeds,
+                    profile, searchLimit, experimentName, budgetKind, budgetValue,
+                    repeatDeterministic, PackingDecoderType.SKYLINE, false);
+        }
+
+        public Options {
+            Objects.requireNonNull(dataDirectory, "数据目录不能为空");
+            Objects.requireNonNull(outputDirectory, "输出目录不能为空");
+            Objects.requireNonNull(algorithms, "算法列表不能为空");
+            Objects.requireNonNull(order, "输入排序不能为空");
+            Objects.requireNonNull(seeds, "随机种子列表不能为空");
+            Objects.requireNonNull(profile, "实验配置不能为空");
+            Objects.requireNonNull(searchLimit, "搜索限制不能为空");
+            Objects.requireNonNull(decoderType, "解码器类型不能为空");
+            if (experimentName == null || experimentName.isBlank()) {
+                throw new IllegalArgumentException("实验名称不能为空");
+            }
+            if (budgetKind == null || budgetKind.isBlank()) {
+                throw new IllegalArgumentException("预算类型不能为空");
+            }
+            if (budgetValue < 0) throw new IllegalArgumentException("预算值不能为负数");
+            algorithms = List.copyOf(algorithms);
+            seeds = List.copyOf(seeds);
+            if (algorithms.isEmpty()) throw new IllegalArgumentException("算法列表不能为空");
+            if (seeds.isEmpty()) throw new IllegalArgumentException("随机种子列表不能为空");
+        }
+    }
+
+    public List<RunObservation> run(Options options) throws IOException {
+        List<Instance> instances = readInstances(options.dataDirectory());
+        ExperimentMetadata.write(options.outputDirectory(), options);
+        SolutionValidator validator = new SolutionValidator();
+        Path checkpointFile = options.outputDirectory().resolve(".experiment-checkpoint.bin");
+        List<RunObservation> runs = options.resume()
+                ? new ArrayList<>(RunCheckpoint.load(checkpointFile, options, instances))
+                : new ArrayList<>();
+        java.util.Set<String> completedKeys = new java.util.HashSet<>();
+        for (RunObservation run : runs) completedKeys.add(runKey(run));
+        if (!runs.isEmpty()) {
+            System.out.printf("断点续跑：已恢复%d次运行%n", runs.size());
+        } else if (options.budgetKind().equals("TIME_MS")) {
+            warmUpTimedAlgorithms(options, instances.get(0));
+        } else if (options.repeatDeterministic()) {
+            warmUpRepeatedAlgorithms(options, instances.get(0));
+        }
+        int total = 0;
+        for (AlgorithmId algorithm : options.algorithms()) {
+            total += instances.size() * repetitions(algorithm, options);
+        }
+        int completed = runs.size();
+
+        for (Instance instance : instances) {
+            for (AlgorithmId algorithm : options.algorithms()) {
+                int repetitions = repetitions(algorithm, options);
+                for (int repetition = 0; repetition < repetitions; repetition++) {
+                    long seed = options.seeds().get(repetition);
+                    String key = runKey(algorithm, instance.name(), repetition + 1, seed);
+                    if (completedKeys.contains(key)) continue;
+                    PackingAlgorithm solver = SolverFactory.create(
+                            algorithm,
+                            options.rotationAllowed(),
+                            options.order(),
+                            seed,
+                            options.profile(),
+                            algorithm.stochastic() ? options.searchLimit() : SearchLimit.unlimited(),
+                            options.decoderType());
+                    Solution solution = solver.solve(instance);
+                    ValidationResult validation = validator.validate(
+                            instance, solution, options.rotationAllowed());
+                    RunObservation observation = new RunObservation(
+                            options.experimentName(), options.budgetKind(), options.budgetValue(),
+                            algorithm, instance, repetition + 1, seed, solution,
+                            validation.valid(), String.join(" | ", validation.errors()),
+                            SolverIntrospection.evaluations(solver),
+                            SolverIntrospection.iterations(solver),
+                            SolverIntrospection.maxRectsBestStatistics(solver),
+                            SolverIntrospection.trace(solver, solution.packedArea()));
+                    runs.add(observation);
+                    completedKeys.add(key);
+                    if (options.resume()) RunCheckpoint.save(checkpointFile, options, runs);
+                    completed++;
+                    System.out.printf("[%d/%d] %-8s %-20s %.4f%%  %.2f ms  eval=%d  %s%n",
+                            completed, total, instance.name(), algorithm.displayName(),
+                            observation.utilizationPercent(), observation.elapsedMilliseconds(),
+                            observation.evaluations(), validation.valid() ? "通过" : "失败");
+                }
+            }
+        }
+
+        ExperimentArtifacts.writeAll(
+                options.outputDirectory(), runs, options.experimentName(), options.decoderType());
+        if (options.resume()) java.nio.file.Files.deleteIfExists(checkpointFile);
+        long failures = runs.stream().filter(run -> !run.valid()).count();
+        System.out.printf("实验完成：%d次运行，验证失败=%d，报告=%s%n",
+                runs.size(), failures, options.outputDirectory().resolve("report.html").toAbsolutePath());
+        if (failures > 0) {
+            throw new IllegalStateException("实验产生了" + failures + "个非法解，详见报告");
+        }
+        return List.copyOf(runs);
+    }
+
+    private static void warmUpTimedAlgorithms(Options options, Instance instance) {
+        long warmupMillis = Math.max(10, Math.min(200, options.budgetValue()));
+        System.out.printf("时间预算实验预热：实例=%s，每算法最多%d ms（不计入结果）%n",
+                instance.name(), warmupMillis);
+        for (AlgorithmId algorithm : options.algorithms()) {
+            if (!algorithm.stochastic()) continue;
+            PackingAlgorithm solver = SolverFactory.create(
+                    algorithm, options.rotationAllowed(), options.order(),
+                    options.seeds().get(0) ^ 0x5DEECE66DL,
+                    options.profile(), SearchLimit.milliseconds(warmupMillis),
+                    options.decoderType());
+            solver.solve(instance);
+        }
+        System.gc();
+    }
+
+    private static void warmUpRepeatedAlgorithms(Options options, Instance instance) {
+        System.out.printf("确定性算法计时预热：实例=%s，每算法运行5次（不计入结果）%n",
+                instance.name());
+        for (AlgorithmId algorithm : options.algorithms()) {
+            for (int i = 0; i < 5; i++) {
+                PackingAlgorithm solver = SolverFactory.create(
+                        algorithm, options.rotationAllowed(), options.order(),
+                        options.seeds().get(0), options.profile(), SearchLimit.unlimited(),
+                        options.decoderType());
+                solver.solve(instance);
+            }
+        }
+        System.gc();
+    }
+
+    private static int repetitions(AlgorithmId algorithm, Options options) {
+        return algorithm.stochastic() || options.repeatDeterministic()
+                ? options.seeds().size()
+                : 1;
+    }
+
+    private static String runKey(RunObservation run) {
+        return runKey(run.algorithm(), run.instance().name(), run.repetition(), run.seed());
+    }
+
+    private static String runKey(
+            AlgorithmId algorithm, String instance, int repetition, long seed) {
+        return algorithm.name() + '\u0000' + instance + '\u0000' + repetition + '\u0000' + seed;
+    }
+
+    public static List<Instance> readInstances(Path directory) throws IOException {
+        List<Path> files = InstanceFiles.listGcutFiles(directory);
+        InstanceReader reader = new InstanceReader();
+        List<Instance> instances = new ArrayList<>(files.size());
+        for (Path file : files) instances.add(reader.read(file));
+        return List.copyOf(instances);
+    }
+
+}

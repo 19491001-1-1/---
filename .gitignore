@@ -1,0 +1,27 @@
+# Java build output
+out/
+build/
+target/
+*.class
+
+# Generated experiment artifacts
+results/
+tmp/
+
+# IDE and operating-system files
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Reference and presentation materials are kept outside the source repository
+*.pdf
+*.docx
+*.ppt
+*.pptx
+*.zip
+
+# Local logs and temporary files
+*.log
+*.tmp
