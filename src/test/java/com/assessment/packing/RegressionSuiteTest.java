@@ -44,6 +44,7 @@ final class RegressionSuiteTest {
                 suite("SkylineAdaptiveGeneticAlgorithm", SkylineAdaptiveGeneticAlgorithmTest::main),
                 suite("GeneticOperators", GeneticOperatorsTest::main),
                 suite("HybridGeneticAlgorithm", HybridGeneticAlgorithmTest::main),
+                suite("GoldenPins", GoldenPinsTest::main),
                 suite("AllAlgorithmsRobustness", AllAlgorithmsRobustnessTest::main),
                 suite("QualityBaseline", QualityBaselineTest::main),
                 suite("InputInfrastructure", InputInfrastructureTest::main),
