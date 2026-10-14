@@ -55,10 +55,38 @@ public final class ShelfSolver implements PackingAlgorithm {
 
     @Override
     public Solution solve(Instance instance) {
-        if (selectionMode == ShelfSelectionMode.GLOBAL) return solveGlobal(instance);
         long start = System.nanoTime();
-        List<Item> items = ItemOrdering.sort(instance.items(), order);
         List<Placement> placements = new ArrayList<>();
+        if (selectionMode == ShelfSelectionMode.GLOBAL) {
+            runGlobal(instance, placements);
+        } else {
+            run(instance, placements);
+        }
+        return new Solution(name(), placements, System.nanoTime() - start);
+    }
+
+    /**
+     * 放置列表只作输出，层状态在各 {@link Shelf} 里，因此轻量路径完全不构造 {@link Placement}。
+     */
+    @Override
+    public long packedAreaOf(Instance instance) {
+        return selectionMode == ShelfSelectionMode.GLOBAL
+                ? runGlobal(instance, null)
+                : run(instance, null);
+    }
+
+    @Override
+    public String name() {
+        return "Shelf-" + heuristic.abbreviation()
+                + (wasteMapEnabled ? "-WM" : "")
+                + (selectionMode == ShelfSelectionMode.GLOBAL ? "-GLOBAL" : "")
+                + "(" + order + ", rotation=" + rotationAllowed + ")";
+    }
+
+    /** {@code placements} 为 {@code null} 时只累计面积，不构造放置对象。 */
+    private long run(Instance instance, List<Placement> placements) {
+        long area = 0;
+        List<Item> items = ItemOrdering.sort(instance.items(), order);
         List<Shelf> shelves = new ArrayList<>();
         shelves.add(new Shelf(0));
         GuillotineFreeSpace wasteMap = wasteMapEnabled
@@ -69,12 +97,16 @@ public final class ShelfSolver implements PackingAlgorithm {
                 : null;
 
         for (Item item : items) {
-            if (tryWasteMap(item, placements, wasteMap)) continue;
+            if (tryWasteMap(item, placements, wasteMap)) {
+                area += item.area();
+                continue;
+            }
 
             ShelfCandidate candidate = findShelf(instance, shelves, item);
             if (candidate != null) {
                 placeOnShelf(item, shelves.get(candidate.shelfIndex()),
                         candidate.orientation(), placements);
+                area += item.area();
                 continue;
             }
 
@@ -88,23 +120,15 @@ public final class ShelfSolver implements PackingAlgorithm {
             if (wasteMap != null) moveShelfGapsToWasteMap(open, wasteMap);
             shelves.add(newShelf);
             placeOnShelf(item, newShelf, orientation, placements);
+            area += item.area();
         }
-
-        return new Solution(name(), placements, System.nanoTime() - start);
+        return area;
     }
 
-    @Override
-    public String name() {
-        return "Shelf-" + heuristic.abbreviation()
-                + (wasteMapEnabled ? "-WM" : "")
-                + (selectionMode == ShelfSelectionMode.GLOBAL ? "-GLOBAL" : "")
-                + "(" + order + ", rotation=" + rotationAllowed + ")";
-    }
-
-    private Solution solveGlobal(Instance instance) {
-        long start = System.nanoTime();
+    /** {@code placements} 为 {@code null} 时只累计面积，不构造放置对象。 */
+    private long runGlobal(Instance instance, List<Placement> placements) {
+        long area = 0;
         List<Item> remaining = new ArrayList<>(ItemOrdering.sort(instance.items(), order));
-        List<Placement> placements = new ArrayList<>();
         List<Shelf> shelves = new ArrayList<>();
         shelves.add(new Shelf(0));
 
@@ -120,6 +144,7 @@ public final class ShelfSolver implements PackingAlgorithm {
                 Item item = remaining.remove(best.itemIndex());
                 placeOnShelf(item, shelves.get(best.shelf().shelfIndex()),
                         best.shelf().orientation(), placements);
+                area += item.area();
                 continue;
             }
 
@@ -146,8 +171,9 @@ public final class ShelfSolver implements PackingAlgorithm {
             shelves.add(next);
             remaining.remove(selectedIndex);
             placeOnShelf(selected, next, orientation, placements);
+            area += selected.area();
         }
-        return new Solution(name(), placements, System.nanoTime() - start);
+        return area;
     }
 
     private static int compareGlobal(GlobalCandidate left, GlobalCandidate right) {
@@ -167,7 +193,9 @@ public final class ShelfSolver implements PackingAlgorithm {
                 List.of(item), rotationAllowed);
         if (selection == null) return false;
         GuillotineFreeSpace.PlacedRectangle placed = wasteMap.place(selection);
-        placements.add(new Placement(item, placed.x(), placed.y(), placed.rotated()));
+        if (placements != null) {
+            placements.add(new Placement(item, placed.x(), placed.y(), placed.rotated()));
+        }
         return true;
     }
 
@@ -260,8 +288,10 @@ public final class ShelfSolver implements PackingAlgorithm {
             Shelf shelf,
             Orientation orientation,
             List<Placement> placements) {
-        placements.add(new Placement(
-                item, shelf.currentX, shelf.startY, orientation.rotated()));
+        if (placements != null) {
+            placements.add(new Placement(
+                    item, shelf.currentX, shelf.startY, orientation.rotated()));
+        }
         shelf.usedRectangles.add(new UsedRectangle(
                 shelf.currentX, shelf.startY,
                 orientation.width(), orientation.height()));

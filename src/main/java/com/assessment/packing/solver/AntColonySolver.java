@@ -319,8 +319,8 @@ public final class AntColonySolver
         }
 
         private long evaluateInitial(int[] sequence) {
-            long area = decode(sequence);
-            cache.put(toItemSequence(sequence), area);
+            // 初始排列必定未缓存，直接解码并回填。
+            long area = cache.decodeAndStore(toItemSequence(sequence));
             evaluations++;
             return area;
         }
@@ -335,14 +335,10 @@ public final class AntColonySolver
             if (evaluations >= limit.maxEvaluations() || limit.timeReached(startNanos)) {
                 return null;
             }
-            long area = decode(sequence);
-            cache.put(ids, area);
+            // 上面已查过表且未命中，这里只解码回填，不重复查表。
+            long area = cache.decodeAndStore(ids);
             evaluations++;
             return area;
-        }
-
-        private long decode(int[] indices) {
-            return cache.areaOf(toItemSequence(indices));
         }
 
         /** 收尾时解码历史最优排列，拿到完整布局。 */

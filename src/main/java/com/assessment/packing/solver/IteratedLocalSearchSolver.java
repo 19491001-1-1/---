@@ -186,7 +186,8 @@ public final class IteratedLocalSearchSolver
                 return new Evaluated(sequence.clone(), cached);
             }
             if (!canEvaluate()) return null;
-            long area = cache.areaOf(sequence);
+            // 上面已查过表且未命中，这里只解码回填，不重复查表。
+            long area = cache.decodeAndStore(sequence);
             evaluations++;
             return new Evaluated(sequence.clone(), area);
         }

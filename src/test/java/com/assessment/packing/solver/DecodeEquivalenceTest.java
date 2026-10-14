@@ -35,8 +35,47 @@ public final class DecodeEquivalenceTest {
     public static void main(String[] args) throws Exception {
         cachedResultsMatchFreshDecode();
         cacheSeparatesInstances();
+        everyRealDecoderLightScoringMatchesFullDecode();
         allSearchersAreReproducibleWithCache();
         System.out.println("DecodeEquivalenceTest: 全部通过");
+    }
+
+    /**
+     * 每个真实解码器的轻量评分必须与完整解码取到的面积严格一致。
+     *
+     * <p>搜索用的是 {@code packedAreaInPriorityOrder}，收尾用的是
+     * {@code solveInPriorityOrder}；两者只要有一处口径不同，搜索就会沿着错误的方向走。
+     * 这里对全部 8 个解码器 × 若干随机排列逐个对照。
+     */
+    private static void everyRealDecoderLightScoringMatchesFullDecode() throws Exception {
+        List<Instance> instances = new ArrayList<>();
+        instances.add(synthetic());
+        instances.add(new InstanceReader().read(Path.of("gcut01/gcut2.txt")));
+
+        for (Instance instance : instances) {
+            List<Item> items = instance.items();
+            List<int[]> sequences = permutations(items.size(), 40, 7L);
+            for (PackingDecoderType type : PackingDecoderType.values()) {
+                PackingDecoder decoder = PackingDecoders.create(type, true);
+                for (int[] sequence : sequences) {
+                    List<Item> priority = new ArrayList<>(sequence.length);
+                    for (int id : sequence) priority.add(itemById(items, id));
+                    long light = decoder.packedAreaInPriorityOrder(instance, priority);
+                    long full = decoder.solveInPriorityOrder(instance, priority).packedArea();
+                    check(light == full,
+                            type + "@" + instance.name() + " 轻量评分与完整解码不一致：轻量="
+                                    + light + "，完整=" + full
+                                    + "，排列=" + java.util.Arrays.toString(sequence));
+                }
+            }
+        }
+    }
+
+    private static Item itemById(List<Item> items, int id) {
+        for (Item item : items) {
+            if (item.id() == id) return item;
+        }
+        throw new AssertionError("实例中不存在编号为 " + id + " 的零件");
     }
 
     /** 缓存返回的每一个解，都必须与「同排列、全新解码」的结果完全相同。 */

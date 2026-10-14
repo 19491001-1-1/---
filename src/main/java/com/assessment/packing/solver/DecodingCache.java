@@ -41,6 +41,13 @@ final class DecodingCache {
      * （适配器内部 {@code List.copyOf} 会复制一份），不会修改或长期持有，因此可以安全复用。
      */
     private final List<Item> priority;
+    /**
+     * 只读查表用的复用键。查表是搜索里最热的一步，若每次都新建键对象、克隆数组并重算哈希，
+     * 这笔分配同样随评价次数线性增长。{@link SequenceKey#set} 会把内容就地改写并同步哈希；
+     * 因为 {@link SequenceKey} 按值相等，它无需进入 map 也能命中已有条目（新键 equals 旧键）。
+     * 该实例只在一次查表内有效，不得长期持有。
+     */
+    private final SequenceKey lookupKey;
 
     DecodingCache(Instance instance, PackingDecoder decoder) {
         this(instance, decoder, DEFAULT_CAPACITY);
@@ -53,6 +60,7 @@ final class DecodingCache {
         this.byId = new Item[maxId(instance) + 1];
         for (Item item : instance.items()) byId[item.id()] = item;
         this.priority = new ArrayList<>(instance.items().size());
+        this.lookupKey = new SequenceKey(new int[instance.items().size()]);
         this.areas = new LinkedHashMap<>(16, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<SequenceKey, Long> eldest) {
@@ -63,7 +71,7 @@ final class DecodingCache {
 
     /** 命中则返回已缓存的装载面积，否则返回 {@code null}。不触发解码。 */
     Long get(int[] sequence) {
-        return areas.get(new SequenceKey(sequence));
+        return areas.get(lookup(sequence));
     }
 
     /**
@@ -73,11 +81,17 @@ final class DecodingCache {
      * 只评分而不构造完整布局；默认实现退化为完整解码后取面积，结果一致。
      */
     long areaOf(int[] sequence) {
-        SequenceKey key = new SequenceKey(sequence);
-        Long cached = areas.get(key);
-        if (cached != null) return cached;
+        Long cached = get(sequence);
+        return cached != null ? cached : decodeAndStore(sequence);
+    }
+
+    /**
+     * 解码并回填，不做前置查表——供已经自行查过表、做完预算判定的调用方使用，
+     * 避免「先 {@code get} 再 {@code areaOf}」在未命中路径上重复查一次表。
+     */
+    long decodeAndStore(int[] sequence) {
         long area = decoder.packedAreaInPriorityOrder(instance, toItems(sequence));
-        areas.put(key, area);
+        areas.put(new SequenceKey(sequence), area);
         return area;
     }
 
@@ -92,11 +106,17 @@ final class DecodingCache {
     }
 
     boolean contains(int[] sequence) {
-        return areas.containsKey(new SequenceKey(sequence));
+        return areas.containsKey(lookup(sequence));
     }
 
     int size() {
         return areas.size();
+    }
+
+    /** 用复用键完成一次只读查找；返回的键仅在同一次方法调用内有效。 */
+    private SequenceKey lookup(int[] sequence) {
+        lookupKey.set(sequence);
+        return lookupKey;
     }
 
     /**

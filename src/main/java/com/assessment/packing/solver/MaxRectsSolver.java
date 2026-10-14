@@ -50,6 +50,22 @@ public final class MaxRectsSolver implements PackingAlgorithm {
     public Solution solve(Instance instance) {
         long start = System.nanoTime();
         List<Placement> usedRectangles = new ArrayList<>();
+        run(instance, usedRectangles);
+        return new Solution(name(), usedRectangles, System.nanoTime() - start);
+    }
+
+    /**
+     * 已放置矩形只有 {@link MaxRectsHeuristic#CP} 的接触评分需要读，其余四种启发式根本不碰它。
+     * 因此轻量路径在非 CP 时传 {@code null}，连 {@link Placement} 都不构造。
+     */
+    @Override
+    public long packedAreaOf(Instance instance) {
+        return run(instance, heuristic == MaxRectsHeuristic.CP ? new ArrayList<>() : null);
+    }
+
+    /** {@code usedRectangles} 同时充当 CP 评分输入与最终布局输出，可为 {@code null}。 */
+    private long run(Instance instance, List<Placement> usedRectangles) {
+        long area = 0;
         List<FreeRectangle> freeRectangles = new ArrayList<>();
         List<Item> remainingItems = new ArrayList<>(
                 ItemOrdering.sort(instance.items(), order));
@@ -67,16 +83,17 @@ public final class MaxRectsSolver implements PackingAlgorithm {
 
             Candidate best = selection.candidate();
             Item item = remainingItems.remove(selection.itemIndex());
-            Placement placement = new Placement(item, best.x(), best.y(), best.rotated());
             FreeRectangle occupied = new FreeRectangle(
                     best.x(), best.y(), best.width(), best.height());
 
             // 注意：不是只切割承载候选的那个空闲矩形，而是切割全部相交项。
             freeRectangles = splitFreeRectangles(freeRectangles, occupied);
-            usedRectangles.add(placement);
+            area += item.area();
+            if (usedRectangles != null) {
+                usedRectangles.add(new Placement(item, best.x(), best.y(), best.rotated()));
+            }
         }
-
-        return new Solution(name(), usedRectangles, System.nanoTime() - start);
+        return area;
     }
 
     private Selection findFirstFittingSelection(

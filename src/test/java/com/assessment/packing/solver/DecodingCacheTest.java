@@ -24,6 +24,8 @@ public final class DecodingCacheTest {
         toItemsMapsIdsAndRejectsUnknown();
         putStoresPreevaluatedSolution();
         decoderAndInstanceDoNotLeakAcrossCaches();
+        decodeAndStoreSkipsLookup();
+        reusedLookupKeyDoesNotResurrectEvictedEntry();
         System.out.println("DecodingCacheTest: 全部通过");
     }
 
@@ -113,6 +115,37 @@ public final class DecodingCacheTest {
 
         check(first.calls == 1 && second.calls == 1,
                 "不同解码器的缓存互不影响，实际=" + first.calls + "/" + second.calls);
+    }
+
+    /** decodeAndStore 用于「已查过表且未命中」的调用方，应直接解码回填。 */
+    private static void decodeAndStoreSkipsLookup() {
+        CountingDecoder decoder = new CountingDecoder();
+        DecodingCache cache = new DecodingCache(instance(), decoder);
+        int[] sequence = {3, 5, 9, 7};
+
+        long area = cache.decodeAndStore(sequence);
+
+        check(area == 300, "面积应由排列首元素决定，实际=" + area);
+        check(decoder.calls == 1, "decodeAndStore应解码一次，实际=" + decoder.calls);
+        check(cache.get(sequence) == 300, "decodeAndStore应把结果回填进缓存");
+    }
+
+    /**
+     * 复用查找键必须与 map 条目按值匹配：某排列被 LRU 淘汰后，再用同一段排列查找
+     * 必须重新未命中（不得因为复用了键实例就复活已淘汰的条目）。
+     */
+    private static void reusedLookupKeyDoesNotResurrectEvictedEntry() {
+        CountingDecoder decoder = new CountingDecoder();
+        DecodingCache cache = new DecodingCache(instance(), decoder, 2);
+
+        cache.areaOf(new int[]{3, 5, 9, 7});
+        cache.areaOf(new int[]{5, 3, 9, 7});
+        cache.areaOf(new int[]{9, 3, 5, 7});     // 淘汰 3,5,9,7
+
+        check(!cache.contains(new int[]{3, 5, 9, 7}), "已淘汰的排列不得被复用键复活");
+        check(cache.get(new int[]{3, 5, 9, 7}) == null, "淘汰后重新查找必须未命中");
+        cache.areaOf(new int[]{3, 5, 9, 7});
+        check(decoder.calls == 4, "淘汰后应重新解码，实际=" + decoder.calls);
     }
 
     private static Instance instance() {

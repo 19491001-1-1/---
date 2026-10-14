@@ -65,4 +65,18 @@ public final class MaxRectsBestSolver implements PackingAlgorithm {
         lastStatistics = new MaxRectsBestStatistics(selected, entries);
         return new Solution(name(), best.placements(), System.nanoTime() - start);
     }
+
+    /**
+     * 轻量路径只需最大的那个装载面积，因此对五种启发式各算一次面积即可，
+     * 不需要构造任何完整布局；胜者选择与 {@link #solve} 完全一致（都取最大面积）。
+     */
+    @Override
+    public long packedAreaOf(Instance instance) {
+        long bestArea = 0;
+        for (MaxRectsHeuristic heuristic : MaxRectsHeuristic.values()) {
+            bestArea = Math.max(bestArea, new MaxRectsSolver(
+                    rotationAllowed, order, heuristic, globalSelection).packedAreaOf(instance));
+        }
+        return bestArea;
+    }
 }

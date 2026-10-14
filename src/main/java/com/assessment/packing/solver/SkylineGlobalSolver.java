@@ -64,10 +64,25 @@ public final class SkylineGlobalSolver implements PackingAlgorithm {
     @Override
     public Solution solve(Instance instance) {
         long start = System.nanoTime();
+        List<Placement> placements = new ArrayList<>();
+        run(instance, placements);
+        return new Solution(name(), placements, System.nanoTime() - start);
+    }
+
+    /**
+     * 放置列表只作输出，天际线状态在各自的 {@link SkylineLevel} 列表里，
+     * 因此轻量路径完全不构造 {@link Placement}。
+     */
+    @Override
+    public long packedAreaOf(Instance instance) {
+        return run(instance, null);
+    }
+
+    /** {@code placements} 为 {@code null} 时只累计面积，不构造放置对象。 */
+    private long run(Instance instance, List<Placement> placements) {
         List<Item> remaining = new ArrayList<>(ItemOrdering.sort(instance.items(), order));
         List<SkylineLevel> skyline = new ArrayList<>();
         skyline.add(new SkylineLevel(0, 0, instance.binWidth()));
-        List<Placement> placements = new ArrayList<>();
         GuillotineFreeSpace wasteMap = wasteMapEnabled
                 ? new GuillotineFreeSpace(
                         GuillotineRectChoice.BSSF,
@@ -76,10 +91,10 @@ public final class SkylineGlobalSolver implements PackingAlgorithm {
                 : null;
 
         if (selectionMode == SkylineSelectionMode.SEQUENTIAL) {
-            solveSequential(instance, remaining, skyline, placements, wasteMap);
-            return new Solution(name(), placements, System.nanoTime() - start);
+            return solveSequential(instance, remaining, skyline, placements, wasteMap);
         }
 
+        long area = 0;
         while (!remaining.isEmpty()) {
             if (wasteMap != null) {
                 GuillotineFreeSpace.Selection wasteSelection = wasteMap.findBest(
@@ -87,8 +102,11 @@ public final class SkylineGlobalSolver implements PackingAlgorithm {
                 if (wasteSelection != null) {
                     Item item = remaining.remove(wasteSelection.itemIndex());
                     GuillotineFreeSpace.PlacedRectangle placed = wasteMap.place(wasteSelection);
-                    placements.add(new Placement(
-                            item, placed.x(), placed.y(), placed.rotated()));
+                    area += item.area();
+                    if (placements != null) {
+                        placements.add(new Placement(
+                                item, placed.x(), placed.y(), placed.rotated()));
+                    }
                     continue;
                 }
             }
@@ -96,21 +114,26 @@ public final class SkylineGlobalSolver implements PackingAlgorithm {
             Candidate best = findBestCandidate(instance, remaining, skyline);
             if (best == null) break;
 
-            placements.add(new Placement(best.item(), best.fit().x(), best.fit().y(), best.rotated()));
+            area += best.item().area();
+            if (placements != null) {
+                placements.add(new Placement(
+                        best.item(), best.fit().x(), best.fit().y(), best.rotated()));
+            }
             if (wasteMap != null) addWasteMapAreas(wasteMap, skyline, best);
             addSkylineLevel(skyline, best.levelIndex(), best.fit(), best.width(), best.height());
             remaining.remove(best.item());
         }
 
-        return new Solution(name(), placements, System.nanoTime() - start);
+        return area;
     }
 
-    private void solveSequential(
+    private long solveSequential(
             Instance instance,
             List<Item> remaining,
             List<SkylineLevel> skyline,
             List<Placement> placements,
             GuillotineFreeSpace wasteMap) {
+        long area = 0;
         while (!remaining.isEmpty()) {
             Item item = remaining.remove(0);
             if (wasteMap != null) {
@@ -118,19 +141,26 @@ public final class SkylineGlobalSolver implements PackingAlgorithm {
                         List.of(item), rotationAllowed);
                 if (wasteSelection != null) {
                     GuillotineFreeSpace.PlacedRectangle placed = wasteMap.place(wasteSelection);
-                    placements.add(new Placement(
-                            item, placed.x(), placed.y(), placed.rotated()));
+                    area += item.area();
+                    if (placements != null) {
+                        placements.add(new Placement(
+                                item, placed.x(), placed.y(), placed.rotated()));
+                    }
                     continue;
                 }
             }
 
             Candidate best = findBestCandidate(instance, List.of(item), skyline);
             if (best == null) continue;
-            placements.add(new Placement(
-                    item, best.fit().x(), best.fit().y(), best.rotated()));
+            area += item.area();
+            if (placements != null) {
+                placements.add(new Placement(
+                        item, best.fit().x(), best.fit().y(), best.rotated()));
+            }
             if (wasteMap != null) addWasteMapAreas(wasteMap, skyline, best);
             addSkylineLevel(skyline, best.levelIndex(), best.fit(), best.width(), best.height());
         }
+        return area;
     }
 
     private static void addWasteMapAreas(

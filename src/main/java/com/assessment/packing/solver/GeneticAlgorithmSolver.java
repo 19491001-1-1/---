@@ -873,14 +873,9 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
                 limitReached = true;
                 return Long.MIN_VALUE;
             }
-            long area = decode(sequence);
-            cache.put(sequence, area);
+            long area = cache.decodeAndStore(sequence);
             evaluations++;
             return area;
-        }
-
-        private long decode(int[] sequence) {
-            return cache.areaOf(sequence);
         }
 
         /** 收尾时解码历史最优排列，拿到完整布局。 */

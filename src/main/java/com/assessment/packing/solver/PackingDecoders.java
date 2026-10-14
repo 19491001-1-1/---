@@ -48,6 +48,13 @@ public final class PackingDecoders {
                 Solution decoded = solver.solve(ordered);
                 return new Solution(name + " decoder", decoded.placements(), decoded.elapsedNanos());
             }
+
+            @Override
+            public long packedAreaInPriorityOrder(Instance instance, List<Item> priority) {
+                Instance ordered = new Instance(
+                        instance.name(), instance.binWidth(), instance.binHeight(), priority);
+                return solverFactory.get().packedAreaOf(ordered);
+            }
         };
     }
 }

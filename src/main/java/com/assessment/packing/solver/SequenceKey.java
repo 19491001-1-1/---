@@ -9,7 +9,7 @@ import java.util.Arrays;
  */
 final class SequenceKey {
     private final int[] values;
-    private final int hash;
+    private int hash;
 
     SequenceKey(int[] values) {
         this.values = values.clone();
@@ -18,6 +18,15 @@ final class SequenceKey {
 
     int[] values() {
         return values;
+    }
+
+    /**
+     * 就地改写为另一段排列并同步哈希。仅供 {@link DecodingCache} 复用单个「只读查找用」键实例，
+     * 从而避免每次查表都新建键并克隆数组。调用方必须保证该实例没有同时被当作 map 的键存放。
+     */
+    void set(int[] next) {
+        System.arraycopy(next, 0, values, 0, values.length);
+        this.hash = Arrays.hashCode(values);
     }
 
     @Override

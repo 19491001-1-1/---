@@ -34,15 +34,26 @@ public final class ContinuousBottomLeftSolver implements PackingAlgorithm {
     public Solution solve(Instance instance) {
         long start = System.nanoTime();
         List<Placement> placed = new ArrayList<>();
+        run(instance, placed);
+        return new Solution(name(), placed, System.nanoTime() - start);
+    }
 
+    @Override
+    public long packedAreaOf(Instance instance) {
+        return run(instance, new ArrayList<>());
+    }
+
+    /** 放置列表本算法内部要做碰撞检测，因此轻量路径仍需构造它，只省掉最后的 Solution。 */
+    private long run(Instance instance, List<Placement> placed) {
+        long area = 0;
         for (Item item : ItemOrdering.sort(instance.items(), order)) {
             RestingPosition best = findBestRestingPosition(item, placed, instance);
             if (best != null) {
                 placed.add(new Placement(item, best.x, best.y, best.rotated));
+                area += item.area();
             }
         }
-
-        return new Solution(name(), placed, System.nanoTime() - start);
+        return area;
     }
 
     private RestingPosition findBestRestingPosition(

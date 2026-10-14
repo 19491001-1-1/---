@@ -28,18 +28,35 @@ public final class ShelfFloorCeilingSolver implements PackingAlgorithm {
     @Override
     public Solution solve(Instance instance) {
         long start = System.nanoTime();
-        List<Item> items = ItemOrdering.sort(instance.items(), order);
         List<Placement> placements = new ArrayList<>();
+        run(instance, placements);
+        return new Solution(name(), placements, System.nanoTime() - start);
+    }
+
+    /**
+     * 放置列表只作输出，层状态在各 {@link Shelf} 里，因此轻量路径完全不构造 {@link Placement}。
+     */
+    @Override
+    public long packedAreaOf(Instance instance) {
+        return run(instance, null);
+    }
+
+    /** {@code placements} 为 {@code null} 时只累计面积，不构造放置对象。 */
+    private long run(Instance instance, List<Placement> placements) {
+        long area = 0;
+        List<Item> items = ItemOrdering.sort(instance.items(), order);
         List<Shelf> closedShelves = new ArrayList<>();
         Shelf open = new Shelf(0, instance.binWidth());
 
         for (Item item : items) {
             FloorCandidate floor = bestFloorOrientation(instance, open, item);
             if (floor != null) {
-                Placement placement = new Placement(item, open.floorX, open.y, floor.rotated());
-                add(open, placement, placements);
-                open.floorX += placement.width();
-                open.height = Math.max(open.height, placement.height());
+                int width = floor.rotated() ? item.height() : item.width();
+                int height = floor.rotated() ? item.width() : item.height();
+                add(open, item, open.floorX, open.y, width, height, floor.rotated(), placements);
+                open.floorX += width;
+                open.height = Math.max(open.height, height);
+                area += item.area();
                 continue;
             }
 
@@ -50,13 +67,12 @@ public final class ShelfFloorCeilingSolver implements PackingAlgorithm {
             CeilingCandidate ceiling = findCeilingCandidate(closedShelves, item);
             if (ceiling != null) {
                 Shelf shelf = ceiling.shelf();
-                Placement placement = new Placement(
-                        item, ceiling.x(), shelf.y + shelf.height - ceiling.height(),
-                        ceiling.rotated());
-                add(shelf, placement, placements);
+                add(shelf, item, ceiling.x(), shelf.y + shelf.height - ceiling.height(),
+                        ceiling.width(), ceiling.height(), ceiling.rotated(), placements);
                 shelf.ceilingX = ceiling.x();
                 Shelf top = closedShelves.get(closedShelves.size() - 1);
                 open = new Shelf(top.y + top.height, instance.binWidth());
+                area += item.area();
                 continue;
             }
 
@@ -67,13 +83,14 @@ public final class ShelfFloorCeilingSolver implements PackingAlgorithm {
             open = new Shelf(nextY, instance.binWidth());
             floor = bestFloorOrientation(instance, open, item);
             if (floor == null) continue;
-            Placement placement = new Placement(item, 0, open.y, floor.rotated());
-            add(open, placement, placements);
-            open.floorX = placement.width();
-            open.height = placement.height();
+            int width = floor.rotated() ? item.height() : item.width();
+            int height = floor.rotated() ? item.width() : item.height();
+            add(open, item, 0, open.y, width, height, floor.rotated(), placements);
+            open.floorX = width;
+            open.height = height;
+            area += item.area();
         }
-
-        return new Solution(name(), placements, System.nanoTime() - start);
+        return area;
     }
 
     @Override
@@ -150,10 +167,19 @@ public final class ShelfFloorCeilingSolver implements PackingAlgorithm {
         return List.of(false);
     }
 
-    private static void add(Shelf shelf, Placement placement, List<Placement> placements) {
-        placements.add(placement);
-        shelf.rectangles.add(new Rect(
-                placement.x(), placement.y(), placement.width(), placement.height()));
+    private static void add(
+            Shelf shelf,
+            Item item,
+            int x,
+            int y,
+            int width,
+            int height,
+            boolean rotated,
+            List<Placement> placements) {
+        if (placements != null) {
+            placements.add(new Placement(item, x, y, rotated));
+        }
+        shelf.rectangles.add(new Rect(x, y, width, height));
     }
 
     private static final class Shelf {

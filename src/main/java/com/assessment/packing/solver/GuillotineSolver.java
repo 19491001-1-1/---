@@ -53,8 +53,24 @@ public final class GuillotineSolver implements PackingAlgorithm {
     @Override
     public Solution solve(Instance instance) {
         long start = System.nanoTime();
-        List<Item> remaining = new ArrayList<>(ItemOrdering.sort(instance.items(), order));
         List<Placement> placements = new ArrayList<>();
+        run(instance, placements);
+        return new Solution(name(), placements, System.nanoTime() - start);
+    }
+
+    /**
+     * 放置列表只作输出，内部状态全在 {@link GuillotineFreeSpace} 里，
+     * 因此轻量路径完全不构造 {@link Placement}。
+     */
+    @Override
+    public long packedAreaOf(Instance instance) {
+        return run(instance, null);
+    }
+
+    /** {@code placements} 为 {@code null} 时只累计面积，不构造放置对象。 */
+    private long run(Instance instance, List<Placement> placements) {
+        long area = 0;
+        List<Item> remaining = new ArrayList<>(ItemOrdering.sort(instance.items(), order));
         GuillotineFreeSpace freeSpace = new GuillotineFreeSpace(
                 choice, splitRule, mergeRectangles);
         freeSpace.addFreeRectangle(new GuillotineFreeSpace.FreeRectangle(
@@ -67,10 +83,12 @@ public final class GuillotineSolver implements PackingAlgorithm {
             if (selection == null) break;
             Item item = remaining.remove(selection.itemIndex());
             GuillotineFreeSpace.PlacedRectangle placed = freeSpace.place(selection);
-            placements.add(new Placement(item, placed.x(), placed.y(), placed.rotated()));
+            area += item.area();
+            if (placements != null) {
+                placements.add(new Placement(item, placed.x(), placed.y(), placed.rotated()));
+            }
         }
-
-        return new Solution(name(), placements, System.nanoTime() - start);
+        return area;
     }
 
 }

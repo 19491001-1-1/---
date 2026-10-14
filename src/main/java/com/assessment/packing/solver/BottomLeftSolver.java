@@ -29,15 +29,26 @@ public final class BottomLeftSolver implements PackingAlgorithm {
     public Solution solve(Instance instance) {
         long start = System.nanoTime();
         List<Placement> placements = new ArrayList<>();
+        run(instance, placements);
+        return new Solution(name(), placements, System.nanoTime() - start);
+    }
 
+    @Override
+    public long packedAreaOf(Instance instance) {
+        return run(instance, new ArrayList<>());
+    }
+
+    /** 放置列表本算法内部要做重叠检测，因此轻量路径仍需构造它，只省掉最后的 Solution。 */
+    private long run(Instance instance, List<Placement> placements) {
+        long area = 0;
         for (Item item : ItemOrdering.sort(instance.items(), order)) {
             Candidate best = findBest(item, placements, instance);
             if (best != null) {
                 placements.add(new Placement(item, best.x, best.y, best.rotated));
+                area += item.area();
             }
         }
-
-        return new Solution(name(), placements, System.nanoTime() - start);
+        return area;
     }
 
     @Override
