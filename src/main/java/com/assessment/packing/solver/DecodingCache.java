@@ -35,6 +35,12 @@ final class DecodingCache {
     private final Item[] byId;
     private final PackingDecoder decoder;
     private final Map<SequenceKey, Long> areas;
+    /**
+     * 还原零件列表用的复用缓冲区。解码是搜索里最热的路径，未命中时若每次都新建
+     * {@code ArrayList<Item>}，这笔分配会随评价次数线性增长。所有解码器都只读取该列表
+     * （适配器内部 {@code List.copyOf} 会复制一份），不会修改或长期持有，因此可以安全复用。
+     */
+    private final List<Item> priority;
 
     DecodingCache(Instance instance, PackingDecoder decoder) {
         this(instance, decoder, DEFAULT_CAPACITY);
@@ -46,6 +52,7 @@ final class DecodingCache {
         if (capacity <= 0) throw new IllegalArgumentException("缓存容量必须为正数");
         this.byId = new Item[maxId(instance) + 1];
         for (Item item : instance.items()) byId[item.id()] = item;
+        this.priority = new ArrayList<>(instance.items().size());
         this.areas = new LinkedHashMap<>(16, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<SequenceKey, Long> eldest) {
@@ -92,9 +99,14 @@ final class DecodingCache {
         return areas.size();
     }
 
-    /** 把零件编号排列还原为零件列表，编号越界时立即报错而不是静默跳过。 */
+    /**
+     * 把零件编号排列还原为零件列表，编号越界时立即报错而不是静默跳过。
+     *
+     * <p>返回的是<b>复用的内部缓冲区</b>，每次调用都会覆盖上一次的内容，调用方不得长期持有。
+     * 这样做的目的是消掉热路径上每次评价一次的列表分配；解码器都只读取该列表。
+     */
     List<Item> toItems(int[] sequence) {
-        List<Item> priority = new ArrayList<>(sequence.length);
+        priority.clear();
         for (int id : sequence) {
             if (id < 0 || id >= byId.length || byId[id] == null) {
                 throw new IllegalStateException("序列包含不存在的零件编号：" + id);

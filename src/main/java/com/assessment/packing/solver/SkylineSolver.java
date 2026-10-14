@@ -44,14 +44,34 @@ public final class SkylineSolver implements PackingAlgorithm, PackingDecoder {
 
     @Override
     public Solution solveInPriorityOrder(Instance instance, List<Item> priorityItems) {
+        // 完整布局只在收尾拿最优排列时需要；搜索过程一律走轻量评分路径。
         long start = System.nanoTime();
+        List<Placement> placements = new ArrayList<>();
+        run(instance, priorityItems, placements);
+        return new Solution(name(), placements, System.nanoTime() - start);
+    }
+
+    /**
+     * 轻量评分路径：只算装入面积，完全不构造 {@link Placement} 列表。
+     *
+     * <p>搜索过程中绝大多数候选排列只需要一个分数，构造和丢弃放置列表纯属浪费。
+     * 两个方法共用 {@link #run} 的同一套放置逻辑，因此面积与 {@code solveInPriorityOrder}
+     * 必然一致——这是搜索轨迹不被优化改变的前提。
+     */
+    @Override
+    public long packedAreaInPriorityOrder(Instance instance, List<Item> priorityItems) {
+        return run(instance, priorityItems, null);
+    }
+
+    /** 跑完整放置逻辑；{@code placements} 为 {@code null} 时只累计面积，不构造放置对象。 */
+    private long run(Instance instance, List<Item> priorityItems, List<Placement> placements) {
         nextSerial = 0;
+        long area = 0;
 
         // 用按编号索引的布尔数组代替 HashSet<Integer>：解码是搜索里最热的循环，
         // 装箱与哈希在剖析中占据显著比例，而零件编号在实例内唯一，语义完全等价。
         boolean[] used = new boolean[maxId(priorityItems) + 1];
         int usedCount = 0;
-        List<Placement> placements = new ArrayList<>();
 
         TreeMap<Integer, Segment> byX = new TreeMap<>();
         PriorityQueue<Segment> heap = new PriorityQueue<>(LOWEST_LEFTMOST);
@@ -76,15 +96,17 @@ public final class SkylineSolver implements PackingAlgorithm, PackingDecoder {
 
             boolean placeRight = shouldPlaceRight(choice.score, leftWall, rightWall);
             int placedX = placeRight ? current.x + current.length - choice.width : current.x;
-            placements.add(new Placement(choice.item, placedX, current.y, choice.rotated));
+            area += (long) choice.width * choice.height;
+            if (placements != null) {
+                placements.add(new Placement(choice.item, placedX, current.y, choice.rotated));
+            }
             used[choice.item.id()] = true;
             usedCount++;
 
             replaceAfterPlacement(current, choice, placeRight, byX, heap);
             normalizeAround(placedX, byX, heap);
         }
-
-        return new Solution(name(), placements, System.nanoTime() - start);
+        return area;
     }
 
     private static int maxId(List<Item> items) {
