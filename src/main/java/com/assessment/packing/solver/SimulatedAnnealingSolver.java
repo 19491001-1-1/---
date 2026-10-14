@@ -82,14 +82,18 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
         DecodingCache cache = new DecodingCache(instance, decoder);
         Random random = new Random(config.seed());
         long currentArea = cache.areaOf(currentSequence);
-        int[] bestSequence = currentSequence.clone();
+        // currentSequence 只在接受候选时整体换新，从不就地改写，因此可以直接共享引用。
+        int[] bestSequence = currentSequence;
         long bestArea = currentArea;
 
         List<ConvergencePoint> trace = new ArrayList<>();
         trace.add(new ConvergencePoint(0, 0, bestArea));
 
+        // 候选排列的复用缓冲区：每个 attempt 原本都要克隆整个排列，这是每评价一次的最大一笔
+        // 分配。改为把候选写进这块固定缓冲，只有被接受时才复制出生效的排列。
+        int[] candidateScratch = new int[currentSequence.length];
         TemperatureEstimate estimate = estimateInitialTemperature(
-                instance, currentSequence, currentArea, cache, random, start);
+                instance, currentSequence, candidateScratch, currentArea, cache, random, start);
         double initialTemperature = Math.max(
                 estimate.temperature(), config.minimumTemperature() / config.coolingRate());
         double temperature = initialTemperature;
@@ -120,8 +124,8 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
                             && !searchLimit.timeReached(start)
                             && estimate.evaluations() + evaluated < searchLimit.maxEvaluations();
                     attempt++) {
-                int[] candidateSequence = randomSwap(currentSequence, random);
-                long candidateArea = cache.areaOf(candidateSequence);
+                randomSwapInto(currentSequence, candidateScratch, random);
+                long candidateArea = cache.areaOf(candidateScratch);
                 evaluated++;
 
                 long areaDifference = candidateArea - currentArea;
@@ -138,11 +142,13 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
                 else if (areaDifference == 0) acceptedEqual++;
                 else acceptedWorse++;
 
-                currentSequence = candidateSequence;
+                // 只有接受的候选才复制出生效排列。
+                currentSequence = candidateScratch.clone();
                 currentArea = candidateArea;
 
                 if (currentArea > bestArea) {
-                    bestSequence = currentSequence.clone();
+                    // currentSequence 从不就地改写，这里直接共享引用即可（原实现是再克隆一次）。
+                    bestSequence = currentSequence;
                     bestArea = currentArea;
                     bestImprovements++;
                     improvedBestThisLevel = true;
@@ -175,6 +181,7 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
     private TemperatureEstimate estimateInitialTemperature(
             Instance instance,
             int[] initialSequence,
+            int[] candidateScratch,
             long initialArea,
             DecodingCache cache,
             Random random,
@@ -188,8 +195,8 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
                         && evaluations < searchLimit.maxEvaluations()
                         && !searchLimit.timeReached(startNanos);
                 sample++) {
-            int[] candidateSequence = randomSwap(initialSequence, random);
-            long candidateArea = cache.areaOf(candidateSequence);
+            randomSwapInto(initialSequence, candidateScratch, random);
+            long candidateArea = cache.areaOf(candidateScratch);
             evaluations++;
             long areaLoss = initialArea - candidateArea;
             if (areaLoss > 0) {
@@ -211,15 +218,21 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
         return Math.exp(normalizedDifference / temperature);
     }
 
-    private static int[] randomSwap(int[] sequence, Random random) {
-        int[] candidate = sequence.clone();
+    /**
+     * 把 {@code sequence} 复制进复用的 {@code candidate} 缓冲，再对其做一次随机交换。
+     *
+     * <p>两次 {@code nextInt} 抽取的顺序与次数保持原样，因此随机数流逐位不变。
+     * 之所以复制整表再改，而不是就地交换后回滚：本类的随机交换没有「撤销」路径
+     * （候选被拒时无操作），整表复制是最省事且绝对正确的写法，且比原先每次新建数组少一次分配。
+     */
+    private static void randomSwapInto(int[] sequence, int[] candidate, Random random) {
+        System.arraycopy(sequence, 0, candidate, 0, sequence.length);
         int first = random.nextInt(candidate.length);
         int second = random.nextInt(candidate.length - 1);
         if (second >= first) second++;
         int temporary = candidate[first];
         candidate[first] = candidate[second];
         candidate[second] = temporary;
-        return candidate;
     }
 
     private record TemperatureEstimate(double temperature, long evaluations) {}

@@ -179,17 +179,22 @@ public final class IteratedLocalSearchSolver
             return evaluations < limit.maxEvaluations() && !limit.timeReached(start);
         }
 
+        /**
+         * 评价一个排列。返回的 {@link Evaluated} 直接持有传入的 {@code sequence}（不再克隆）：
+         * 调用方要么传入自己刚构造、之后不再改动的数组，要么在改动前先 {@code clone}，
+         * 因此不会有谁在评价之后就地改写这块数组——每次评价省下的一次整表复制是纯收益。
+         */
         private Evaluated evaluate(int[] sequence) {
             Long cached = cache.get(sequence);
             if (cached != null) {
                 cacheHits++;
-                return new Evaluated(sequence.clone(), cached);
+                return new Evaluated(sequence, cached);
             }
             if (!canEvaluate()) return null;
             // 上面已查过表且未命中，这里只解码回填，不重复查表。
             long area = cache.decodeAndStore(sequence);
             evaluations++;
-            return new Evaluated(sequence.clone(), area);
+            return new Evaluated(sequence, area);
         }
 
         /** 收尾时解码历史最优排列，拿到完整布局。 */

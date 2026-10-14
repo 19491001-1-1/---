@@ -101,6 +101,13 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
                 ? currentSolution.packedArea()
                 : cache.areaOf(currentSequence);
         int[] bestSequence = currentSequence.clone();
+        // 候选排列的复用缓冲区：邻域里每个交换原本都要克隆整个排列，这是每评价一次的最大一笔
+        // 分配。改为把候选写进这块固定缓冲，评价完即被下一次覆盖；只有真正胜出的候选才复制出
+        // 自己的副本再交给 Neighbor（Neighbor 会被长期持有并提升为 currentSequence，
+        // 绝不能指向共享缓冲）。
+        int[] candidateScratch = new int[currentSequence.length];
+        // 交换集合的形状只由长度决定，每次迭代只是重新洗牌，无需重建。
+        List<Swap> swaps = allSwaps(currentSequence.length);
         long bestArea = currentArea;
         List<ConvergencePoint> trace = new ArrayList<>();
         trace.add(new ConvergencePoint(0, 0, bestArea));
@@ -139,7 +146,6 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
             pruneExpired(orderTabuUntil, iteration);
             pruneExpired(adjacencyTabuUntil, iteration);
             pruneExpired(placementTabuUntil, iteration);
-            List<Swap> swaps = allSwaps(currentSequence.length);
             Collections.shuffle(swaps, random);
             int primaryLimit = Math.min(config.neighborhoodSize(), swaps.size());
 
@@ -149,13 +155,15 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
                     && evaluated < searchLimit.maxEvaluations()
                     && !searchLimit.timeReached(start); examined++) {
                 Neighbor candidate = evaluateSwap(
-                        swaps.get(examined), currentSequence, iteration, instance,
+                        swaps.get(examined), currentSequence, candidateScratch, iteration, instance,
                         cache, bestArea, fullStateMemory,
                         moveTabuUntil, positionTabuUntil, orderTabuUntil,
                         adjacencyTabuUntil, placementTabuUntil);
                 if (candidate.evaluated) evaluated++;
                 if (candidate.tabu) tabuHits++;
-                if (candidate.admissible && betterNeighbor(candidate, bestNeighbor)) bestNeighbor = candidate;
+                if (candidate.admissible && betterNeighbor(candidate, candidateScratch, bestNeighbor)) {
+                    bestNeighbor = candidate.owned(candidateScratch);
+                }
             }
 
             // 抽样邻域全被禁忌时，扩大到剩余完整交换邻域，避免搜索停滞。
@@ -167,13 +175,15 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
                         && evaluated < searchLimit.maxEvaluations()
                         && !searchLimit.timeReached(start); examined++) {
                     Neighbor candidate = evaluateSwap(
-                            swaps.get(examined), currentSequence, iteration, instance,
+                            swaps.get(examined), currentSequence, candidateScratch, iteration, instance,
                             cache, bestArea, fullStateMemory,
                             moveTabuUntil, positionTabuUntil, orderTabuUntil,
                             adjacencyTabuUntil, placementTabuUntil);
                     if (candidate.evaluated) evaluated++;
                     if (candidate.tabu) tabuHits++;
-                    if (candidate.admissible && betterNeighbor(candidate, bestNeighbor)) bestNeighbor = candidate;
+                    if (candidate.admissible && betterNeighbor(candidate, candidateScratch, bestNeighbor)) {
+                        bestNeighbor = candidate.owned(candidateScratch);
+                    }
                 }
             }
 
@@ -215,9 +225,14 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
         return new Solution(name(), verifiedBest.placements(), System.nanoTime() - start);
     }
 
+    /**
+     * 评价一个交换候选。候选排列写进复用的 {@code scratch}，返回的 {@link Neighbor} 不持有它
+     * ——只有胜出的候选才由调用方复制出副本。
+     */
     private Neighbor evaluateSwap(
             Swap swap,
             int[] current,
+            int[] scratch,
             int iteration,
             Instance instance,
             DecodingCache cache,
@@ -231,20 +246,21 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
 
         int itemA = current[swap.firstPosition];
         int itemB = current[swap.secondPosition];
-        int[] candidateSequence = current.clone();
-        candidateSequence[swap.firstPosition] = itemB;
-        candidateSequence[swap.secondPosition] = itemA;
+        // 当前排列在位置 swap 上本就互不相同，只需交换这两处即可得到候选，无需整表克隆。
+        System.arraycopy(current, 0, scratch, 0, current.length);
+        scratch[swap.firstPosition] = itemB;
+        scratch[swap.secondPosition] = itemA;
 
-        if (mode == TabuMode.FULL_STATE && fullStateMemory.contains(candidateSequence)) {
-            return Neighbor.rejected(swap, candidateSequence, itemA, itemB);
+        if (mode == TabuMode.FULL_STATE && fullStateMemory.contains(scratch)) {
+            return Neighbor.rejected(swap, itemA, itemB);
         }
 
         Solution candidateSolution = mode == TabuMode.PLACEMENT_ATTRIBUTE
-                ? cache.solve(candidateSequence)
+                ? cache.solve(scratch)
                 : null;
         long candidateArea = candidateSolution != null
                 ? candidateSolution.packedArea()
-                : cache.areaOf(candidateSequence);
+                : cache.areaOf(scratch);
         boolean tabu = switch (mode) {
             case FULL_STATE -> false;
             case MOVE -> moveTabuUntil[itemA][itemB] > iteration;
@@ -252,16 +268,16 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
                     positionTabuUntil[itemA][swap.secondPosition] > iteration
                             || positionTabuUntil[itemB][swap.firstPosition] > iteration;
             case RELATIVE_ORDER_ATTRIBUTE -> containsForbiddenOrder(
-                    candidateSequence, iteration, orderTabuUntil);
+                    scratch, iteration, orderTabuUntil);
             case ADJACENCY_ATTRIBUTE -> containsForbiddenAdjacency(
-                    candidateSequence, iteration, adjacencyTabuUntil);
+                    scratch, iteration, adjacencyTabuUntil);
             case PLACEMENT_ATTRIBUTE -> containsForbiddenPlacement(
-                    candidateSequence, candidateSolution, iteration, placementTabuUntil);
+                    scratch, candidateSolution, iteration, placementTabuUntil);
         };
         boolean aspiration = tabu && candidateArea > bestArea;
         boolean admissible = !tabu || aspiration;
         return new Neighbor(
-                swap, candidateSequence, candidateArea, candidateSolution, itemA, itemB,
+                swap, null, candidateArea, candidateSolution, itemA, itemB,
                 tabu, true, admissible, aspiration);
     }
 
@@ -412,15 +428,20 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
         tabuUntil.entrySet().removeIf(entry -> entry.getValue() <= iteration);
     }
 
-    private static boolean betterNeighbor(Neighbor candidate, Neighbor incumbent) {
+    /**
+     * 比较候选与当前最优。候选排列仍写在共享缓冲 {@code candidateSequence} 里
+     * （{@link Neighbor#owned} 之前），因此平局时从缓冲读取；{@code incumbent} 一定已持有副本。
+     */
+    private static boolean betterNeighbor(
+            Neighbor candidate, int[] candidateSequence, Neighbor incumbent) {
         if (incumbent == null) return true;
         if (candidate.area != incumbent.area) {
             return candidate.area > incumbent.area;
         }
         // 面积相同时，稳定地选择字典序更小的完整排列。
-        for (int i = 0; i < candidate.sequence.length; i++) {
-            if (candidate.sequence[i] != incumbent.sequence[i]) {
-                return candidate.sequence[i] < incumbent.sequence[i];
+        for (int i = 0; i < candidateSequence.length; i++) {
+            if (candidateSequence[i] != incumbent.sequence[i]) {
+                return candidateSequence[i] < incumbent.sequence[i];
             }
         }
         return false;
@@ -436,7 +457,11 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
 
     private record Swap(int firstPosition, int secondPosition) {}
 
-    /** {@code solution} 仅在 PLACEMENT_ATTRIBUTE 模式下非空——只有该模式需要放置位置。 */
+    /**
+     * {@code solution} 仅在 PLACEMENT_ATTRIBUTE 模式下非空——只有该模式需要放置位置。
+     * {@code sequence} 为 {@code null} 表示该候选尚未持有排列副本（评价时只写在共享缓冲里），
+     * 胜出后必须经 {@link #owned} 复制出生效的排列。
+     */
     private record Neighbor(
             Swap swap,
             int[] sequence,
@@ -448,8 +473,15 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
             boolean evaluated,
             boolean admissible,
             boolean aspiration) {
-        private static Neighbor rejected(Swap swap, int[] sequence, int itemA, int itemB) {
-            return new Neighbor(swap, sequence, 0, null, itemA, itemB, true, false, false, false);
+        /** 复制出候选自己的排列副本；只有被选中的候选才调用，一次评价最多一次。 */
+        private Neighbor owned(int[] candidateScratch) {
+            return new Neighbor(
+                    swap, candidateScratch.clone(), area, solution, itemA, itemB,
+                    tabu, evaluated, admissible, aspiration);
+        }
+
+        private static Neighbor rejected(Swap swap, int itemA, int itemB) {
+            return new Neighbor(swap, null, 0, null, itemA, itemB, true, false, false, false);
         }
     }
 
