@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -43,7 +43,7 @@ jobs:
         working-directory: frontend
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       # pnpm 必须先于 setup-node 安装：setup-node 的 pnpm 缓存需要 pnpm 已在 PATH 上，
       # 否则会在这一步报「pnpm 未找到」。
       - name: Set up pnpm
@@ -71,7 +71,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -97,7 +97,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
