@@ -51,7 +51,7 @@ jobs:
         with:
           version: 10
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # 与 Maven frontend profile 对齐；jsdom 30 / undici 8 需要 Node 24.15+。
           node-version: '24'
