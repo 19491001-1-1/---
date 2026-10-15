@@ -32,3 +32,59 @@ jobs:
           name: jacoco-report
           path: target/site/jacoco/
           if-no-files-found: ignore
+
+  # 前端类型检查 + 单测 + 覆盖率门禁 + 生产构建。端到端冒烟（Playwright）刻意不进 CI：
+  # 它要真实后端与 Chromium，跑起来既慢又脆，价值是本地手工守接缝，不适合当门禁。
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      # pnpm 必须先于 setup-node 安装：setup-node 的 pnpm 缓存需要 pnpm 已在 PATH 上，
+      # 否则会在这一步报「pnpm 未找到」。
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Type check, unit tests and coverage gate
+        run: pnpm check
+      - name: Production build
+        run: pnpm build
+
+  # 单 jar 交付形态：前端产物必须真的进得去 web jar。这一条是 -Pfrontend 路径在 CI 里
+  # 唯一的长期看门人——本地构建过不代表下次仍然能打出来。
+  web-jar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      # -DskipTests：这条 job 只验证打包形状，测试与覆盖率已由 test job 覆盖。
+      # 前端构建会由 profile 内部下载 Node 与 pnpm，构建机无需预装。
+      - name: Package single web jar with frontend
+        run: ./mvnw --batch-mode --no-transfer-progress -Pfrontend -DskipTests package
+      - name: Assert frontend assets are inside the web jar
+        run: |
+          unzip -l target/rectangle-packing-1.0.0-web.jar | grep -q 'static/index.html' \
+            || { echo "web jar 内没有 static/index.html，前端没有被打包进去"; exit 1; }
+          unzip -l target/rectangle-packing-1.0.0-web.jar | grep -q 'static/assets/' \
+            || { echo "web jar 内没有 static/assets/，前端资源缺失"; exit 1; }
+          echo "单 jar 已包含前端产物"

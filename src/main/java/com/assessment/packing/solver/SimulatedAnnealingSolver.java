@@ -115,7 +115,8 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
                 && noImprovementLevels < config.maxNoImprovementLevels()
                 && bestArea < instance.binArea()
                 && !searchLimit.timeReached(start)
-                && estimate.evaluations() + evaluated < searchLimit.maxEvaluations()) {
+                && estimate.evaluations() + evaluated < searchLimit.maxEvaluations()
+                && !SearchLimit.cancelled()) {
 
             boolean improvedBestThisLevel = false;
             completedLevels++;
@@ -124,7 +125,8 @@ public final class SimulatedAnnealingSolver implements PackingAlgorithm, Converg
                     attempt < attempts
                             && bestArea < instance.binArea()
                             && !searchLimit.timeReached(start)
-                            && estimate.evaluations() + evaluated < searchLimit.maxEvaluations();
+                            && estimate.evaluations() + evaluated < searchLimit.maxEvaluations()
+                            && !SearchLimit.cancelled();
                     attempt++) {
                 randomSwapInto(currentSequence, candidateScratch, random);
                 long candidateArea = cache.areaOf(candidateScratch);

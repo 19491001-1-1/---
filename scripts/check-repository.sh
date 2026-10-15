@@ -9,6 +9,8 @@ forbidden_files=(${(f)"$(find . -type f \
   -not -path './target/*' \
   -not -path './out/*' \
   -not -path './results/*' \
+  -not -path './frontend/node_modules/*' \
+  -not -path './frontend/dist/*' \
   \( -iname '*.pdf' -o -iname '*.docx' -o -iname '*.ppt' \
      -o -iname '*.pptx' -o -iname '*.zip' \
      -o -iname '*教程*' -o -iname '*答辩*' -o -iname '*explainer*' \) -print)"})

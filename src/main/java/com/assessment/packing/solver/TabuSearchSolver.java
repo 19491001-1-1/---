@@ -141,7 +141,8 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
                         && noImprovement < config.maxNoImprovement()
                         && bestArea < instance.binArea()
                         && evaluated < searchLimit.maxEvaluations()
-                        && !searchLimit.timeReached(start);
+                        && !searchLimit.timeReached(start)
+                        && !SearchLimit.cancelled();
                 iteration++) {
 
             completedIterations++;
@@ -155,7 +156,8 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
             int examined = 0;
             for (; examined < primaryLimit
                     && evaluated < searchLimit.maxEvaluations()
-                    && !searchLimit.timeReached(start); examined++) {
+                    && !searchLimit.timeReached(start)
+                    && !SearchLimit.cancelled(); examined++) {
                 Neighbor candidate = evaluateSwap(
                         swaps.get(examined), currentSequence, candidateScratch, iteration, instance,
                         cache, bestArea, fullStateMemory,
@@ -171,11 +173,13 @@ public final class TabuSearchSolver implements PackingAlgorithm, ConvergenceTrac
             // 抽样邻域全被禁忌时，扩大到剩余完整交换邻域，避免搜索停滞。
             if (bestNeighbor == null && examined < swaps.size()
                     && evaluated < searchLimit.maxEvaluations()
-                    && !searchLimit.timeReached(start)) {
+                    && !searchLimit.timeReached(start)
+                    && !SearchLimit.cancelled()) {
                 expanded++;
                 for (; examined < swaps.size()
                         && evaluated < searchLimit.maxEvaluations()
-                        && !searchLimit.timeReached(start); examined++) {
+                        && !searchLimit.timeReached(start)
+                        && !SearchLimit.cancelled(); examined++) {
                     Neighbor candidate = evaluateSwap(
                             swaps.get(examined), currentSequence, candidateScratch, iteration, instance,
                             cache, bestArea, fullStateMemory,

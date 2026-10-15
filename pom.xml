@@ -21,13 +21,36 @@
         <jmh.version>1.37</jmh.version>
         <build.helper.version>3.6.0</build.helper.version>
         <exec.version>3.5.0</exec.version>
+        <spring-boot.version>3.5.16</spring-boot.version>
+        <frontend.plugin.version>1.15.4</frontend.plugin.version>
+        <frontend.node.version>v20.19.0</frontend.node.version>
+        <frontend.pnpm.version>10.4.1</frontend.pnpm.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>${junit.version}</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -56,9 +79,26 @@
                     <archive>
                         <manifest>
                             <mainClass>com.assessment.packing.Main</mainClass>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                         </manifest>
                     </archive>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+                <configuration>
+                    <mainClass>com.assessment.packing.web.PackingWebApplication</mainClass>
+                    <classifier>web</classifier>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>
@@ -186,6 +226,99 @@
                             <classpathScope>test</classpathScope>
                             <commandlineArgs>-classpath %classpath org.openjdk.jmh.Main ${jmh.args}</commandlineArgs>
                         </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+          单 jar 可选打包：只在显式启用时构建前端并把 dist 复制进 web JAR：
+              ./mvnw -Pfrontend package
+          默认 ./mvnw clean verify 完全不触碰 Node，产物与覆盖率门禁一个字节都不变。
+
+          profile 未激活时下面这些插件与执行统统不参与构建，无需额外的 activation 条件。
+          代价：单模块结构下 target/classes 同时喂 CLI jar 与 web jar，-Pfrontend 时
+          CLI jar 也会捎带一份 static/；默认构建不含。不为这个把项目拆成多模块。
+        -->
+        <profile>
+            <id>frontend</id>
+            <build>
+                <plugins>
+                    <!--
+                      Node 与 pnpm 由插件下载到 target/ 下，不要求构建机预装 Node——
+                      CI 的 ubuntu-latest 与本机（无系统 node）因此共用同一条路径。
+                      复用的是 frontend/package.json 里已有的脚本，不另起一套构建定义。
+                    -->
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>${frontend.plugin.version}</version>
+                        <configuration>
+                            <workingDirectory>frontend</workingDirectory>
+                            <installDirectory>${project.build.directory}</installDirectory>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>install-frontend-toolchain</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>install-node-and-pnpm</goal>
+                                </goals>
+                                <configuration>
+                                    <nodeVersion>${frontend.node.version}</nodeVersion>
+                                    <pnpmVersion>${frontend.pnpm.version}</pnpmVersion>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>frontend-install</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>pnpm</goal>
+                                </goals>
+                                <configuration>
+                                    <!-- 锁定版本：CI 与本机必须装出同一棵依赖树 -->
+                                    <arguments>install --frozen-lockfile</arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>frontend-build</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>pnpm</goal>
+                                </goals>
+                                <configuration>
+                                    <!-- 复用 npm script：类型检查（vue-tsc）+ vite 生产构建 -->
+                                    <arguments>build</arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!--
+                      把前端产物放进 target/classes/static：web jar 会把它作为 classpath
+                      静态资源托管。前端构建在 generate-resources 阶段先完成，此处
+                      process-resources 才复制，顺序上不会拿到空的 dist。
+                    -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>copy-frontend-dist</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>${project.basedir}/frontend/dist</directory>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>

@@ -120,12 +120,14 @@ public final class AntColonySolver
         while (completedIterations < config.maxIterations()
                 && noImprovementIterations < config.maxNoImprovementIterations()
                 && bestArea < instance.binArea()
-                && !searchLimit.timeReached(start)) {
+                && !searchLimit.timeReached(start)
+                && !SearchLimit.cancelled()) {
             List<Ant> colony = new ArrayList<>(config.antCount());
             boolean improvedThisIteration = false;
 
             for (int antIndex = 0;
-                    antIndex < config.antCount() && !searchLimit.timeReached(start);
+                    antIndex < config.antCount() && !searchLimit.timeReached(start)
+                            && !SearchLimit.cancelled();
                     antIndex++) {
                 int[] sequence = constructPermutation(
                         pheromone, desirability,

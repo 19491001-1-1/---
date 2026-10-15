@@ -216,7 +216,8 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
                 && noImprovementGenerations < config.maxNoImprovementGenerations()
                 && historicalBest.packedArea < instance.binArea()
                 && evaluator.evaluations < searchLimit.maxEvaluations()
-                && !searchLimit.timeReached(start)) {
+                && !searchLimit.timeReached(start)
+                && !SearchLimit.cancelled()) {
             completedGenerations++;
             population.sort(BEST_FIRST);
             PopulationFitness fitness = PopulationFitness.of(population);
@@ -871,7 +872,8 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
                 return cached;
             }
             if (evaluations >= searchLimit.maxEvaluations()
-                    || evaluations > 0 && searchLimit.timeReached(startNanos)) {
+                    || evaluations > 0 && searchLimit.timeReached(startNanos)
+                    || SearchLimit.cancelled()) {
                 limitReached = true;
                 return Long.MIN_VALUE;
             }

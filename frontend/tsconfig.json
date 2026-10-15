@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "vitest/globals", "node"],
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] }
+  },
+  // e2e/ 不在这里：它跑在 Node 的 Playwright 运行时里，与浏览器代码的类型环境不同，
+  // 混进来会为了迁就它给 src 放宽配置。类型由 `pnpm test:e2e` 自己保证。
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "vite.config.ts", "playwright.config.ts"]
+}

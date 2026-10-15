@@ -178,7 +178,8 @@ public final class IteratedLocalSearchSolver
         }
 
         private boolean canEvaluate() {
-            return evaluations < limit.maxEvaluations() && !limit.timeReached(start);
+            return evaluations < limit.maxEvaluations() && !limit.timeReached(start)
+                    && !SearchLimit.cancelled();
         }
 
         /**

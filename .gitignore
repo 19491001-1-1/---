@@ -26,5 +26,15 @@ tmp/
 *.log
 *.tmp
 
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+# Playwright 运行产物：报告、失败截图与 trace
+frontend/playwright-report/
+frontend/test-results/
+frontend/.playwright/
+.pnpm-store/
+
 # JMH 基准输出（构建产物）
 jmh-result.text
