@@ -20,4 +20,4 @@
 - Windows PowerShell 与 macOS/Linux Shell 运维脚本对齐。
 - 仓库内容检查、贡献指南、安全策略和 GitHub Issue/PR 模板。
 
-[1.0.0]: https://github.com/wwwwuuuu1122/2D-single-sheet-nesting/releases/tag/v1.0.0
+[1.0.0]: https://github.com/wwwwuuuu1122/2D-single-sheet-nesting/tree/v1.0.0
