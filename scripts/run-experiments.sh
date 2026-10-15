@@ -1,11 +1,11 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 set -euo pipefail
 
-project_dir="${0:A:h:h}"
+project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$project_dir"
 
 mkdir -p out
-find src/main/java -name '*.java' -print0 \
+find src/main/java -name '*.java' ! -path '*/web/*' -print0 \
   | xargs -0 javac -encoding UTF-8 -d out
 
 if (( $# == 0 )); then

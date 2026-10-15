@@ -93,7 +93,7 @@ final class ExperimentTaskStore {
      * 原子写入任务元数据。先写同目录的临时文件再整体替换：断电或崩溃只会留下一个被忽略的
      * {@code .tmp}，绝不会让 meta.bin 变成半截文件——否则启动恢复会连任务都读不出来。
      */
-    void saveMeta(StoredTask task) throws IOException {
+    synchronized void saveMeta(StoredTask task) throws IOException {
         Path directory = directory(task.id());
         Files.createDirectories(directory);
         Path target = directory.resolve("meta.bin");

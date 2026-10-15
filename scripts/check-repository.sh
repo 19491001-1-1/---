@@ -1,10 +1,10 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 set -euo pipefail
 
-project_dir="${0:A:h:h}"
+project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$project_dir"
 
-forbidden_files=(${(f)"$(find . -type f \
+forbidden_files="$(find . -type f \
   -not -path './.git/*' \
   -not -path './target/*' \
   -not -path './out/*' \
@@ -13,11 +13,11 @@ forbidden_files=(${(f)"$(find . -type f \
   -not -path './frontend/dist/*' \
   \( -iname '*.pdf' -o -iname '*.docx' -o -iname '*.ppt' \
      -o -iname '*.pptx' -o -iname '*.zip' \
-     -o -iname '*教程*' -o -iname '*答辩*' -o -iname '*explainer*' \) -print)"})
+     -o -iname '*教程*' -o -iname '*答辩*' -o -iname '*explainer*' \) -print)"
 
-if (( ${#forbidden_files[@]} > 0 )); then
+if [[ -n "$forbidden_files" ]]; then
   echo "Repository check failed: reference or tutorial files must stay outside the source repository."
-  printf '  %s\n' "${forbidden_files[@]}"
+  printf '%s\n' "$forbidden_files" | sed 's/^/  /'
   exit 1
 fi
 
@@ -31,7 +31,7 @@ if [[ -d .github/modernize ]]; then
   exit 1
 fi
 
-obsolete_product_docs=(PROJECT_STATUS.md docs/开发交接文档.md docs/性能优化记录.md)
+obsolete_product_docs=("PROJECT_STATUS.md" "docs/开发交接文档.md" "docs/性能优化记录.md")
 for obsolete_doc in "${obsolete_product_docs[@]}"; do
   if [[ -e "$obsolete_doc" ]]; then
     echo "Repository check failed: obsolete process document found: $obsolete_doc"
