@@ -47,7 +47,7 @@ jobs:
       # pnpm 必须先于 setup-node 安装：setup-node 的 pnpm 缓存需要 pnpm 已在 PATH 上，
       # 否则会在这一步报「pnpm 未找到」。
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
       - name: Set up Node
