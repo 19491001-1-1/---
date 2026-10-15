@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -51,13 +52,14 @@ final class ExperimentLifecycleTest {
 
     @Test
     void cancelStopsRunningExperimentAndRecordsTerminalState() {
-        service = service();
+        CountDownLatch cellStarted = new CountDownLatch(1);
+        service = blockingService(cellStarted);
         ExperimentDtos.Task created = service.create(request("取消实验", 1, SLOW_BUDGET));
         // create() 返回时后台线程可能已经开跑，QUEUED 与 RUNNING 都是合法初始状态。
         assertTrue(created.status().equals("QUEUED") || created.status().equals("RUNNING"),
                 "新建任务的初始状态应为排队中或运行中，实际=" + created.status());
 
-        awaitUntil("实验开始运行", () -> !service.require(created.id()).status().equals("QUEUED"), 20);
+        awaitUntil("求解格子实际开始运行", () -> cellStarted.getCount() == 0, 20);
         service.cancel(created.id());
 
         ExperimentDtos.Task settled = awaitTerminal(created.id(), 60);
@@ -67,9 +69,10 @@ final class ExperimentLifecycleTest {
 
     @Test
     void cancelledExperimentKeepsOnlyValidPartialResults() {
-        service = service();
+        CountDownLatch cellStarted = new CountDownLatch(1);
+        service = blockingService(cellStarted);
         ExperimentDtos.Task created = service.create(request("取消结果校验", 1, SLOW_BUDGET));
-        awaitUntil("实验开始运行", () -> !service.require(created.id()).status().equals("QUEUED"), 20);
+        awaitUntil("求解格子实际开始运行", () -> cellStarted.getCount() == 0, 20);
         service.cancel(created.id());
 
         ExperimentDtos.Task settled = awaitTerminal(created.id(), 60);
@@ -122,9 +125,10 @@ final class ExperimentLifecycleTest {
 
     @Test
     void retryIsRejectedWhileStillRunning() {
-        service = service();
+        CountDownLatch cellStarted = new CountDownLatch(1);
+        service = blockingService(cellStarted);
         ExperimentDtos.Task created = service.create(request("运行中重试", 1, SLOW_BUDGET));
-        awaitUntil("实验开始运行", () -> !service.require(created.id()).status().equals("QUEUED"), 20);
+        awaitUntil("求解格子实际开始运行", () -> cellStarted.getCount() == 0, 20);
 
         ApiException error = assertThrows(ApiException.class, () -> service.retry(created.id()));
         assertEquals("EXPERIMENT_ALREADY_RUNNING", error.code());
@@ -275,6 +279,16 @@ final class ExperimentLifecycleTest {
             // 与真实求解器一致：收到中断就放弃当前这次评价，把中断状态留给上层清理。
             Thread.currentThread().interrupt();
         }
+    }
+
+    /** 明确握手的慢求解器：测试线程看到计数归零时，格子一定仍在执行，消除机器快慢带来的竞态。 */
+    private ExperimentTaskService blockingService(CountDownLatch cellStarted) {
+        InstanceCatalogService instances = new InstanceCatalogService("gcut01");
+        return new ExperimentTaskService((request, cell) -> {
+            cellStarted.countDown();
+            sleep(30_000);
+            return ExperimentTaskService.CellOutcome.scalar(row(cell, 100));
+        }, instances, new ExperimentTaskStore(storeDirectory));
     }
 
     private static ExperimentDtos.Request request(String name, int parallelism, long budget) {
