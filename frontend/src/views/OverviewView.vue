@@ -1,15 +1,33 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { api } from '@/api/client'
 import StatePanel from '@/components/shared/StatePanel.vue'
+import { experimentStatusLabel } from '@/experimentStatus'
 import { useCatalogStore } from '@/stores/catalog'
+import type { ExperimentTask } from '@/types/api'
 
 const catalog = useCatalogStore()
+const recentTasks = ref<ExperimentTask[]>([])
+const recentLoading = ref(true)
 const metrics = computed(() => [
   { value: catalog.meta?.productSearchAlgorithms ?? '—', label: '产品搜索器', note: '优化物品顺序' },
   { value: catalog.meta?.productDecoders ?? '—', label: '产品解码器', note: '构造合法布局' },
   { value: catalog.meta?.productCombinations ?? '—', label: '自由组合', note: '搜索 × 解码' },
   { value: catalog.meta?.implementedAlgorithmEntries ?? '—', label: '历史入口', note: '可回归、可复现' },
 ])
+
+onMounted(async () => {
+  try {
+    recentTasks.value = (await api.experiments()).slice(0, 5)
+  } catch {
+    // 概览的实验摘要是辅助信息，目录加载错误仍由页面顶部统一呈现。
+  } finally {
+    recentLoading.value = false
+  }
+})
+
+const date = (value: string) => new Date(value).toLocaleString('zh-CN')
+const percent = (value: number | null) => value === null ? '—' : `${(value * 100).toFixed(2)}%`
 </script>
 
 <template>
@@ -69,12 +87,22 @@ const metrics = computed(() => [
       </article>
 
       <article class="recent-panel">
-        <header class="section-heading"><div><p class="section-kicker">实验记录</p><h3>最近运行</h3></div></header>
-        <div class="clean-empty">
+        <header class="section-heading"><div><p class="section-kicker">实验记录</p><h3>最近运行</h3></div><RouterLink to="/records">查看全部 →</RouterLink></header>
+        <div v-if="recentLoading" class="clean-empty" aria-live="polite">
+          <span aria-hidden="true">···</span><strong>正在读取实验记录</strong>
+        </div>
+        <div v-else-if="recentTasks.length === 0" class="clean-empty">
           <span aria-hidden="true">⊘</span>
           <strong>还没有可展示的实验</strong>
-          <p>实验任务 API 完成后，这里将显示真实运行记录，不使用伪造数据。</p>
-          <RouterLink to="/solve">先运行一次求解</RouterLink>
+          <p>启动第一组对比实验后，这里会展示真实运行记录。</p>
+          <RouterLink to="/experiments">创建对比实验</RouterLink>
+        </div>
+        <div v-else class="recent-task-list">
+          <RouterLink v-for="task in recentTasks" :key="task.id" :to="{ path: '/records', query: { task: task.id } }">
+            <span><strong>{{ task.name }}</strong><small>{{ date(task.createdAt) }}</small></span>
+            <span><small>{{ task.completedTasks }}/{{ task.totalTasks }}</small><strong>{{ percent(task.bestUtilization) }}</strong></span>
+            <i :class="task.status.toLowerCase()">{{ experimentStatusLabel(task.status) }}</i>
+          </RouterLink>
         </div>
       </article>
     </section>

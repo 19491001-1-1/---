@@ -53,7 +53,8 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          # 与 Maven frontend profile 对齐；jsdom 30 / undici 8 需要 Node 24.15+。
+          node-version: '24'
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies

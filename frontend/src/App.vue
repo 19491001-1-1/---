@@ -7,13 +7,13 @@ const route = useRoute()
 const catalog = useCatalogStore()
 
 const navigation = [
-  { path: '/', label: '概览', short: '概' },
-  { path: '/solve', label: '单次求解', short: '解' },
-  { path: '/experiments', label: '对比实验', short: '验' },
-  { path: '/records', label: '实验记录', short: '录' },
-  { path: '/analysis', label: '结果分析', short: '析' },
-  { path: '/algorithms', label: '算法档案', short: '算' },
-  { path: '/about', label: '项目说明', short: '说' },
+  { path: '/', label: '概览', short: '概', mobile: '概览' },
+  { path: '/solve', label: '单次求解', short: '解', mobile: '求解' },
+  { path: '/experiments', label: '对比实验', short: '验', mobile: '实验' },
+  { path: '/records', label: '实验记录', short: '录', mobile: '记录' },
+  { path: '/analysis', label: '结果分析', short: '析', mobile: '分析' },
+  { path: '/algorithms', label: '算法档案', short: '算', mobile: '算法' },
+  { path: '/about', label: '项目说明', short: '说', mobile: '说明' },
 ]
 
 const currentTitle = computed(() => navigation.find((item) => item.path === route.path)?.label ?? '排样平台')
@@ -32,9 +32,10 @@ onMounted(() => catalog.load())
         </div>
       </div>
       <nav class="nav-list">
-        <RouterLink v-for="item in navigation" :key="item.path" :to="item.path" class="nav-item">
+        <RouterLink v-for="item in navigation" :key="item.path" :to="item.path" class="nav-item" :aria-label="item.label">
           <span class="nav-glyph" aria-hidden="true">{{ item.short }}</span>
-          <span>{{ item.label }}</span>
+          <span class="nav-label">{{ item.label }}</span>
+          <span class="mobile-nav-label" aria-hidden="true">{{ item.mobile }}</span>
         </RouterLink>
       </nav>
       <div class="sidebar-foot">

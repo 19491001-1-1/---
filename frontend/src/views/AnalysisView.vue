@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { api, ApiClientError } from '@/api/client'
 import StatePanel from '@/components/shared/StatePanel.vue'
 import HeatmapChart from '@/components/analysis/HeatmapChart.vue'
 import BoxplotChart from '@/components/analysis/BoxplotChart.vue'
 import ConvergenceCompareChart from '@/components/analysis/ConvergenceCompareChart.vue'
+import { experimentStatusLabel } from '@/experimentStatus'
 import {
   boxplot, convergenceSeries, heatmap, summarizeByAlgorithm,
   HEAT_DIMENSION_LABEL, type HeatDimension,
 } from '@/analysis/experimentAnalysis'
-import { isTerminal, type ExperimentAnalysis, type ExperimentTask } from '@/types/api'
+import { terminalStatuses, type ExperimentAnalysis, type ExperimentTask } from '@/types/api'
 
 const tasks = ref<ExperimentTask[]>([])
 const analysis = ref<ExperimentAnalysis | null>(null)
@@ -24,12 +25,21 @@ const picked = ref<string | null>(null)
 
 const DIMENSIONS: HeatDimension[] = ['searchAlgorithm', 'decoder', 'instanceId']
 
+// 横纵轴相同时热力图只剩一条对角线，没有比较意义。用户把某一轴切到另一轴当前值时，
+// 自动把另一轴换到本轴切换前的维度，相当于交换两轴，既保持选择有效也不吞掉操作。
+watch(xDimension, (next, previous) => {
+  if (next === yDimension.value) yDimension.value = previous
+})
+watch(yDimension, (next, previous) => {
+  if (next === xDimension.value) xDimension.value = previous
+})
+
 async function loadTasks() {
   loading.value = true; error.value = null
   try {
     tasks.value = await api.experiments()
     // 默认选最近一个终态任务：分析视图要拿逐格轨迹，选一个还在跑的任务会满屏都是空。
-    const preferred = tasks.value.find((task) => isTerminal(task) && task.completedTasks > 0)
+    const preferred = tasks.value.find((task) => terminalStatuses.includes(task.status) && task.completedTasks > 0)
       ?? tasks.value.find((task) => task.completedTasks > 0)
     if (!selectedId.value && preferred) await select(preferred.id)
   } catch (reason) {
@@ -46,6 +56,7 @@ async function select(id: string) {
     analysis.value = await api.experimentAnalysis(id)
     const instances = Object.keys(analysis.value.instances)
     if (!instances.includes(selectedInstance.value)) selectedInstance.value = instances[0] ?? ''
+    scheduleRefresh()
   } catch (reason) {
     analysis.value = null
     error.value = reason instanceof ApiClientError ? reason.message : '无法加载分析数据'
@@ -55,6 +66,13 @@ async function select(id: string) {
 /** 任务跑完后重新拉一次，让热力图与曲线把新到的格子补上。 */
 async function refresh() {
   if (selectedId.value) await select(selectedId.value)
+}
+
+let refreshTimer: number | null = null
+function scheduleRefresh() {
+  if (refreshTimer !== null) { window.clearTimeout(refreshTimer); refreshTimer = null }
+  if (!analysis.value || terminalStatuses.includes(analysis.value.status)) return
+  refreshTimer = window.setTimeout(() => { void refresh() }, 3_000)
 }
 
 const cells = computed(() => analysis.value?.cells ?? [])
@@ -83,7 +101,7 @@ function pick(x: string, y: string) {
 const percent = (value: number) => `${(value * 100).toFixed(2)}%`
 const number = (value: number) => value.toFixed(value >= 100 ? 0 : 1)
 
-watch(tasks, () => { /* 列表变化不自动重选，避免用户正在看的分析被顶掉 */ })
+onBeforeUnmount(() => { if (refreshTimer !== null) window.clearTimeout(refreshTimer) })
 void loadTasks()
 </script>
 
@@ -103,20 +121,22 @@ void loadTasks()
         <label class="plain-field"><span>实验</span>
           <select :value="selectedId ?? ''" @change="select(($event.target as HTMLSelectElement).value)">
             <option v-for="task in tasks" :key="task.id" :value="task.id">
-              {{ task.name }} · {{ task.completedTasks }}/{{ task.totalTasks }} · {{ task.status }}
+              {{ task.name }} · {{ task.completedTasks }}/{{ task.totalTasks }} · {{ experimentStatusLabel(task.status) }}
             </option>
           </select>
         </label>
         <label class="plain-field"><span>热力图纵轴</span>
           <select v-model="yDimension">
-            <option v-for="dimension in DIMENSIONS" :key="dimension" :value="dimension">
+            <option v-for="dimension in DIMENSIONS" :key="dimension" :value="dimension"
+              :disabled="dimension === xDimension">
               {{ HEAT_DIMENSION_LABEL[dimension] }}
             </option>
           </select>
         </label>
         <label class="plain-field"><span>热力图横轴</span>
           <select v-model="xDimension">
-            <option v-for="dimension in DIMENSIONS" :key="dimension" :value="dimension">
+            <option v-for="dimension in DIMENSIONS" :key="dimension" :value="dimension"
+              :disabled="dimension === yDimension">
               {{ HEAT_DIMENSION_LABEL[dimension] }}
             </option>
           </select>

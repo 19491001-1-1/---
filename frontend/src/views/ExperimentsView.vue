@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index.mjs'
+import { useRoute, useRouter } from 'vue-router'
 import { api, ApiClientError } from '@/api/client'
 import StatePanel from '@/components/shared/StatePanel.vue'
 import ExperimentArtifacts from '@/components/shared/ExperimentArtifacts.vue'
+import { experimentStatusLabel } from '@/experimentStatus'
 import { useExperimentEvents } from '@/composables/useExperimentEvents'
 import { useCatalogStore } from '@/stores/catalog'
 import { isTerminal, type BudgetMode, type ExperimentPreview, type ExperimentRequest } from '@/types/api'
 
 const catalog = useCatalogStore()
+const route = useRoute()
+const router = useRouter()
 const form = reactive({
   name: `对比实验 ${new Date().toLocaleDateString('zh-CN')}`,
   instanceIds: [] as string[], searchAlgorithms: [] as string[], decoders: [] as string[],
@@ -69,6 +73,7 @@ async function start() {
     preview.value = await api.previewExperiment(request())
     const created = await api.createExperiment(request())
     events.subscribe(created.id)
+    await router.replace({ query: { ...route.query, task: created.id } })
     ElMessage.success('实验任务已进入后台队列')
   } catch (reason) { error.value = reason instanceof ApiClientError ? reason.message : '无法启动实验' }
   finally { busy.value = false }
@@ -103,6 +108,19 @@ function toggle(list: string[], value: string) {
 }
 
 const percent = (value: number) => `${(value * 100).toFixed(2)}%`
+onMounted(async () => {
+  const id = typeof route.query.task === 'string' ? route.query.task : null
+  if (!id) return
+  busy.value = true
+  try {
+    task.value = await api.experiment(id)
+    if (!isTerminal(task.value)) events.subscribe(id)
+  } catch (reason) {
+    error.value = reason instanceof ApiClientError ? reason.message : '无法恢复当前实验'
+  } finally {
+    busy.value = false
+  }
+})
 onBeforeUnmount(() => events.dispose())
 </script>
 
@@ -113,14 +131,14 @@ onBeforeUnmount(() => events.dispose())
     <div class="experiment-builder">
       <section class="matrix-config">
         <label class="matrix-name"><span>实验名称</span><input v-model="form.name" maxlength="80" /></label>
-        <div class="matrix-block"><header><strong>01 · 基准实例</strong><span>已选 {{ form.instanceIds.length }}</span></header><div class="choice-grid instances"><button v-for="item in catalog.instances" :key="item.id" type="button" :class="{ selected: form.instanceIds.includes(item.id) }" @click="toggle(form.instanceIds, item.id)"><strong>{{ item.name }}</strong><small>{{ item.itemCount }} 件 · {{ item.binWidth }}×{{ item.binHeight }}</small></button></div></div>
-        <div class="matrix-block"><header><strong>02 · 搜索优化器</strong><span>已选 {{ form.searchAlgorithms.length }}</span></header><div class="choice-grid"><button v-for="item in catalog.searchAlgorithms" :key="item.machineValue" type="button" :class="{ selected: form.searchAlgorithms.includes(item.machineValue) }" @click="toggle(form.searchAlgorithms, item.machineValue)"><strong>{{ item.chineseName }}</strong><small>{{ item.machineValue }}</small></button></div></div>
-        <div class="matrix-block"><header><strong>03 · 排样解码器</strong><span>已选 {{ form.decoders.length }}</span></header><div class="choice-grid"><button v-for="item in catalog.decoders" :key="item.machineValue" type="button" :class="{ selected: form.decoders.includes(item.machineValue) }" @click="toggle(form.decoders, item.machineValue)"><strong>{{ item.chineseName }}</strong><small>{{ item.machineValue }}</small></button></div></div>
+        <div class="matrix-block"><header><strong>01 · 基准实例</strong><span>已选 {{ form.instanceIds.length }}</span></header><div class="choice-grid instances"><button v-for="item in catalog.instances" :key="item.id" type="button" :aria-pressed="form.instanceIds.includes(item.id)" :class="{ selected: form.instanceIds.includes(item.id) }" @click="toggle(form.instanceIds, item.id)"><strong>{{ item.name }}</strong><small>{{ item.itemCount }} 件 · {{ item.binWidth }}×{{ item.binHeight }}</small></button></div></div>
+        <div class="matrix-block"><header><strong>02 · 搜索优化器</strong><span>已选 {{ form.searchAlgorithms.length }}</span></header><div class="choice-grid"><button v-for="item in catalog.searchAlgorithms" :key="item.machineValue" type="button" :aria-pressed="form.searchAlgorithms.includes(item.machineValue)" :class="{ selected: form.searchAlgorithms.includes(item.machineValue) }" @click="toggle(form.searchAlgorithms, item.machineValue)"><strong>{{ item.chineseName }}</strong><small>{{ item.machineValue }}</small></button></div></div>
+        <div class="matrix-block"><header><strong>03 · 排样解码器</strong><span>已选 {{ form.decoders.length }}</span></header><div class="choice-grid"><button v-for="item in catalog.decoders" :key="item.machineValue" type="button" :aria-pressed="form.decoders.includes(item.machineValue)" :class="{ selected: form.decoders.includes(item.machineValue) }" @click="toggle(form.decoders, item.machineValue)"><strong>{{ item.chineseName }}</strong><small>{{ item.machineValue }}</small></button></div></div>
       </section>
       <aside class="experiment-sidebar">
         <h3>运行协议</h3>
         <label class="plain-field"><span>随机种子（逗号分隔）</span><input v-model="form.seedsText" /></label>
-        <div class="budget-tabs"><button type="button" :class="{ active: form.budgetMode === 'EVALUATIONS' }" @click="form.budgetMode = 'EVALUATIONS'">评价次数</button><button type="button" :class="{ active: form.budgetMode === 'TIME_MS' }" @click="form.budgetMode = 'TIME_MS'">时间预算</button></div>
+        <div class="budget-tabs" role="radiogroup" aria-label="预算模式"><button type="button" role="radio" :aria-checked="form.budgetMode === 'EVALUATIONS'" :class="{ active: form.budgetMode === 'EVALUATIONS' }" @click="form.budgetMode = 'EVALUATIONS'">评价次数</button><button type="button" role="radio" :aria-checked="form.budgetMode === 'TIME_MS'" :class="{ active: form.budgetMode === 'TIME_MS' }" @click="form.budgetMode = 'TIME_MS'">时间预算</button></div>
         <label v-if="form.budgetMode === 'EVALUATIONS'" class="plain-field"><span>每任务评价次数</span><input v-model.number="form.maxEvaluations" type="number" min="1" max="5000000" /></label>
         <label v-else class="plain-field"><span>每任务毫秒数</span><input v-model.number="form.maxMilliseconds" type="number" min="1" max="300000" /></label>
         <label class="plain-field"><span>并行度</span><input v-model.number="form.parallelism" type="number" min="1" max="8" :disabled="form.budgetMode === 'TIME_MS'" /></label>
@@ -131,8 +149,8 @@ onBeforeUnmount(() => events.dispose())
       </aside>
     </div>
     <section v-if="task" class="live-task">
-      <header><div><p class="section-kicker">实时任务</p><h3>{{ task.name }}</h3></div><span :class="['task-status', task.status.toLowerCase()]">{{ task.status }}</span></header>
-      <div class="progress-track"><i :style="{ width: `${task.progressPercent}%` }"></i></div>
+      <header><div><p class="section-kicker">实时任务</p><h3>{{ task.name }}</h3></div><span :class="['task-status', task.status.toLowerCase()]">{{ experimentStatusLabel(task.status) }}</span></header>
+      <div class="progress-track" role="progressbar" aria-label="实验进度" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="task.progressPercent"><i :style="{ width: `${task.progressPercent}%` }"></i></div>
       <div class="progress-facts"><strong>{{ task.completedTasks }} / {{ task.totalTasks }}</strong><span>{{ task.progressPercent.toFixed(1) }}%</span><span>{{ task.currentTask ?? '等待调度' }}</span></div>
       <div v-if="task.completedTasks" class="live-metrics"><div><strong>{{ task.legalResults }}</strong><span>合法结果</span></div><div><strong>{{ percent(task.averageUtilization) }}</strong><span>平均利用率</span></div><div><strong>{{ task.bestUtilization === null ? '—' : percent(task.bestUtilization) }}</strong><span>最佳利用率</span></div></div>
       <!-- 只有 FAILED 才是「失败」；已取消的任务也可能带说明（例如服务重启），

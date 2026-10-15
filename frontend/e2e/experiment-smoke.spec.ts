@@ -44,7 +44,7 @@ test('2×2 实验能跑到 100% 并给出合法结果', async ({ page }) => {
 
   const live = page.locator('.live-task')
   await expect(live).toBeVisible()
-  await expect(live.locator('.task-status')).toHaveText('COMPLETED', { timeout: 150_000 })
+  await expect(live.locator('.task-status')).toHaveText('已完成', { timeout: 150_000 })
 
   // 进度条走满 + 计数一致：SSE 断线补发如果丢事件，这里就对不上。
   await expect(live.locator('.progress-facts strong')).toHaveText('4 / 4')
@@ -56,6 +56,24 @@ test('2×2 实验能跑到 100% 并给出合法结果', async ({ page }) => {
   await expect(artifacts.locator('.artifact-list li').first()).toBeVisible({ timeout: 60_000 })
   await expect(artifacts.locator('.artifact-list')).toContainText('runs.csv')
   await expect(artifacts.locator('.artifact-list')).toContainText('report.html')
+
+  // 当前任务 id 写进路由，刷新后从后端重新读取，而不是丢回一张空白实验表单。
+  await expect(page).toHaveURL(/\/experiments\?task=/)
+  await page.reload()
+  await expect(page.locator('.live-task .task-status')).toHaveText('已完成', { timeout: 30_000 })
+  await expect(page.locator('.live-task .progress-facts strong')).toHaveText('4 / 4')
+})
+
+test('移动端七个导航入口完整可用', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+
+  const navigation = page.locator('.nav-list .nav-item')
+  await expect(navigation).toHaveCount(7)
+  await expect(page.getByRole('link', { name: '项目说明' })).toBeVisible()
+  await page.getByRole('link', { name: '项目说明' }).click()
+  await expect(page).toHaveURL(/\/about$/)
+  await expect(page.getByRole('heading', { name: '项目说明' })).toBeVisible()
 })
 
 /** 逐个点掉已选项：`.selected` 的集合每点一次都会变，所以要反复取第一个。 */

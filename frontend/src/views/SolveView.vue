@@ -140,8 +140,8 @@ const number = (value: number) => value.toLocaleString('zh-CN')
           <div class="config-content">
             <span class="field-label">运行参数</span>
             <div class="budget-tabs" role="radiogroup" aria-label="预算模式">
-              <button type="button" :class="{ active: form.budgetMode === 'EVALUATIONS' }" @click="form.budgetMode = 'EVALUATIONS'">评价次数</button>
-              <button type="button" :class="{ active: form.budgetMode === 'TIME_MS' }" @click="form.budgetMode = 'TIME_MS'">时间预算</button>
+              <button type="button" role="radio" :aria-checked="form.budgetMode === 'EVALUATIONS'" :class="{ active: form.budgetMode === 'EVALUATIONS' }" @click="form.budgetMode = 'EVALUATIONS'">评价次数</button>
+              <button type="button" role="radio" :aria-checked="form.budgetMode === 'TIME_MS'" :class="{ active: form.budgetMode === 'TIME_MS' }" @click="form.budgetMode = 'TIME_MS'">时间预算</button>
             </div>
             <el-input-number v-if="form.budgetMode === 'EVALUATIONS'" v-model="form.maxEvaluations" :min="1" :max="5000000" :step="1000" controls-position="right" class="full-control" aria-label="评价次数" />
             <el-input-number v-else v-model="form.maxMilliseconds" :min="1" :max="300000" :step="500" controls-position="right" class="full-control" aria-label="时间预算，毫秒" />

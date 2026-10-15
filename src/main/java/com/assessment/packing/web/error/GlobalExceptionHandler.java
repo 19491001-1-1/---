@@ -8,6 +8,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +43,23 @@ public final class GlobalExceptionHandler {
             HttpMessageNotReadableException exception, HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST",
                 "请求体无法解析，请检查 JSON 字段和枚举值", Map.of(), request);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<ApiErrorDto> notFound(
+            NoResourceFoundException exception, HttpServletRequest request) {
+        return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND",
+                "请求的资源不存在", Map.of(), request);
+    }
+
+    /**
+     * SSE 客户端关闭页面或刷新时，容器会用这个异常通知写端连接已经消失。
+     * 这是长连接的正常生命周期，响应通常也已经提交；既不能再写一份 JSON，
+     * 也不应按服务端故障打印整段 ERROR 堆栈。
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    void disconnected(AsyncRequestNotUsableException exception) {
+        LOGGER.debug("异步客户端已断开：{}", exception.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

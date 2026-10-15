@@ -69,10 +69,12 @@ final class SpaFallbackTest {
     @Test
     @DisplayName("未知的 /api 路径不被回退吞掉——回退不得改变既有 API 行为")
     void unknownApiPathIsNotSwallowedBySpaFallback() throws Exception {
-        MvcResult result = mvc.perform(get("/api/nonsense")).andReturn();
+        MvcResult result = mvc.perform(get("/api/nonsense"))
+                .andExpect(status().isNotFound())
+                .andReturn();
         String body = result.getResponse().getContentAsString();
-        assertFalse(result.getResponse().getStatus() == 200,
-                "未知 API 路径不应返回 200");
+        assertTrue(body.contains("RESOURCE_NOT_FOUND"),
+                "未知 API 路径应返回稳定的 404 错误码");
         assertFalse(body.contains(INDEX_MARKER),
                 "未知 API 路径不能拿到 index.html，否则真实错误被伪装成前端页面");
     }
@@ -80,9 +82,9 @@ final class SpaFallbackTest {
     @Test
     @DisplayName("带扩展名的缺失静态资源不吐 HTML，避免把打错的 js/css 地址变成 200 页面")
     void missingAssetWithExtensionIsNotTurnedIntoHtml() throws Exception {
-        MvcResult result = mvc.perform(get("/assets/app.js")).andReturn();
-        assertFalse(result.getResponse().getStatus() == 200,
-                "缺失的 js 地址不应返回 200");
+        MvcResult result = mvc.perform(get("/assets/app.js"))
+                .andExpect(status().isNotFound())
+                .andReturn();
         assertFalse(result.getResponse().getContentAsString().contains(INDEX_MARKER),
                 "缺失的 js 地址不应被回退成 index.html");
     }

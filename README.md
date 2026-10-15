@@ -15,7 +15,7 @@
 ## 环境要求
 
 - JDK 17 或更高版本
-- Node.js 20.19+（前端开发与生产构建）
+- Node.js 24.15+（前端开发与生产构建；单 jar profile 会自动下载 24.19.0）
 - pnpm 10+（前端依赖使用 `pnpm-lock.yaml` 锁定）
 - 可选：Playwright 的 Chromium（仅端到端冒烟需要，见「端到端冒烟」）
 - macOS/Linux 可直接运行 Maven Wrapper 和项目脚本
@@ -80,8 +80,8 @@ java -jar target/rectangle-packing-1.0.0-web.jar   # 打开 http://localhost:808
 
 单 jar 形态附带一个 SPA 回退：前端路由是 history 模式，用户直接打开或刷新 `/records`
 这类路径时服务端拿到的是磁盘上不存在的路径，回退统一交给 `index.html` 由前端路由接管。
-回退**只作用于非 `/api` 路径**，且不会把打错的 `.js`/`.css` 地址变成 HTML —— 未知 API
-路径与缺失静态资源的既有行为不变。默认构建没有 `static/index.html`，回退自动退化为空操作。
+回退**只作用于非 `/api` 路径**，且不会把打错的 `.js`/`.css` 地址变成 HTML；未知 API
+路径与缺失静态资源统一返回结构化 404。默认构建没有 `static/index.html`，回退自动退化为空操作。
 
 两点已知取舍：单模块结构下 `target/classes` 同时喂 CLI jar 与 web jar，因此 `-Pfrontend`
 时 CLI jar 也会捎带一份 `static/`（默认构建不含）；`-Pfrontend` 不跑前端单测，前端质量由

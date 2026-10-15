@@ -33,7 +33,7 @@ test('分析页用真实结果画出四张图', async ({ page }) => {
   await page.locator('.experiment-sidebar input[type="number"]').first().fill('50')
 
   await page.getByRole('button', { name: '启动实验' }).click()
-  await expect(page.locator('.live-task .task-status')).toHaveText('COMPLETED', { timeout: 150_000 })
+  await expect(page.locator('.live-task .task-status')).toHaveText('已完成', { timeout: 150_000 })
 
   // 按 id 精确选中刚跑完的这个任务。
   // 不能按名字选：默认实验名只带日期（「对比实验 2026/10/15」），同一天建的多条完全同名。

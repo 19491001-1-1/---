@@ -38,7 +38,7 @@ const analysis = (overrides: Partial<ExperimentAnalysis> = {}): ExperimentAnalys
 })
 
 /** 记录请求 URL 的 fetch 替身；分析页只需 GET，因此不关心 method。 */
-function stubFetch(tasks: ExperimentTask[], detail: ExperimentAnalysis | (() => never)) {
+function stubFetch(tasks: ExperimentTask[], detail: ExperimentAnalysis | (() => ExperimentAnalysis)) {
   const urls: string[] = []
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     urls.push(url)
@@ -106,6 +106,19 @@ describe('AnalysisView', () => {
     expect(urls).toContain('/api/experiments/task-2/analysis')
   })
 
+  it('横纵轴不会落到同一维度，冲突选择会交换两轴', async () => {
+    stubFetch([task()], analysis())
+    const wrapper = mount(AnalysisView)
+    await flushPromises()
+
+    const selects = wrapper.findAll('.analysis-toolbar select')
+    // 初始为纵轴解码器、横轴搜索器；把横轴选成解码器时，纵轴应换成原横轴搜索器。
+    await selects[2].setValue('decoder')
+
+    expect((selects[1].element as HTMLSelectElement).value).toBe('searchAlgorithm')
+    expect((selects[2].element as HTMLSelectElement).value).toBe('decoder')
+  })
+
   it('任务未跑完时如实标出缺格，而不是假装数据完整', async () => {
     stubFetch([task({ completedTasks: 1, totalTasks: 4 })],
       analysis({ completedTasks: 1, totalTasks: 4 }))
@@ -122,5 +135,27 @@ describe('AnalysisView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('分析数据加载失败')
+  })
+
+  it('非终态实验自动补齐分析数据，进入终态后停止轮询', async () => {
+    vi.useFakeTimers()
+    let current = analysis({ status: 'RUNNING', completedTasks: 1, totalTasks: 2 })
+    const urls = stubFetch([task({ status: 'RUNNING', completedTasks: 1 })], () => current)
+    const wrapper = mount(AnalysisView)
+    await flushPromises()
+    const analysisCalls = () => urls.filter((url) => url.endsWith('/analysis')).length
+    expect(analysisCalls()).toBe(1)
+
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(analysisCalls()).toBe(2)
+
+    current = analysis({ status: 'COMPLETED', completedTasks: 2, totalTasks: 2 })
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(analysisCalls()).toBe(3)
+    await vi.advanceTimersByTimeAsync(9_000)
+    expect(analysisCalls()).toBe(3)
+
+    wrapper.unmount()
+    vi.useRealTimers()
   })
 })

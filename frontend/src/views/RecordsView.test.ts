@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { routeLocationKey } from 'vue-router'
 import type { ExperimentTask } from '@/types/api'
 
 /**
@@ -48,7 +49,9 @@ describe('RecordsView', () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
   const mountView = async () => {
-    const wrapper = mount(RecordsView)
+    const wrapper = mount(RecordsView, {
+      global: { provide: { [routeLocationKey as symbol]: { query: {} } } },
+    })
     await flushPromises()
     return wrapper
   }
@@ -84,12 +87,14 @@ describe('RecordsView', () => {
       wrapper.findAll('.status-tabs button').find((button) => button.text().startsWith(label))!
 
     expect(tab('全部').text()).toContain('3')
-    expect(tab('RUNNING').text()).toContain('1')
+    expect(tab('运行中').text()).toContain('1')
+    expect(tab('等待中').text()).toContain('0')
+    expect(tab('失败').text()).toContain('0')
 
-    await tab('RUNNING').trigger('click')
+    await tab('运行中').trigger('click')
     expect(names(wrapper)).toEqual(['还在跑'])
 
-    await tab('CANCELLED').trigger('click')
+    await tab('已取消').trigger('click')
     expect(names(wrapper)).toEqual(['被取消'])
   })
 

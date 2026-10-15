@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { api, ApiClientError } from '@/api/client'
 import StatePanel from '@/components/shared/StatePanel.vue'
 import ExperimentArtifacts from '@/components/shared/ExperimentArtifacts.vue'
+import { experimentStatusLabel } from '@/experimentStatus'
 import { isTerminal, terminalStatuses, type ExperimentTask } from '@/types/api'
 
 const tasks = ref<ExperimentTask[]>([])
+const route = useRoute()
 const selected = ref<ExperimentTask | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -19,6 +22,7 @@ const sortDescending = ref(true)
 const SORT_LABEL: Record<SortKey, string> = {
   createdAt: '创建时间', progressPercent: '进度', bestUtilization: '最佳利用率', name: '名称',
 }
+const STATUS_FILTERS: ExperimentTask['status'][] = ['QUEUED', 'RUNNING', ...terminalStatuses]
 
 async function load() {
   loading.value = true; error.value = null
@@ -84,13 +88,15 @@ let timer: number | null = null
 
 const running = computed(() => tasks.value.some((task) => !isTerminal(task)))
 function schedule() {
-  if (timer !== null) { clearInterval(timer); timer = null }
+  if (timer !== null) { window.clearTimeout(timer); timer = null }
   if (!running.value) return
-  timer = window.setInterval(async () => {
+  // 用一次性定时器串行轮询：如果一次请求超过 3 秒，setInterval 会在上一轮尚未结束时
+  // 再发下一轮，慢网络下请求会越积越多。每轮完成后再安排下一轮可天然避免重叠。
+  timer = window.setTimeout(async () => {
+    timer = null
     await load()
     if (selected.value) await open(selected.value)
-    // 每轮之后重新评估一次：任务全部跑完时这里会把自己停掉，
-    // 否则定时器会一直空转，页面上明明没有活干却还在每 3 秒发一次请求。
+    // 每轮之后重新评估一次：任务全部跑完时不再安排下一轮。
     schedule()
   }, 3_000)
 }
@@ -99,13 +105,19 @@ const date = (value: string) => new Date(value).toLocaleString('zh-CN')
 const percent = (value: number | null) => value === null ? '—' : `${(value * 100).toFixed(2)}%`
 const statusCounts = computed(() => {
   const counts: Record<string, number> = { ALL: tasks.value.length }
-  for (const status of terminalStatuses) counts[status] = 0
+  for (const status of STATUS_FILTERS) counts[status] = 0
   for (const task of tasks.value) counts[task.status] = (counts[task.status] ?? 0) + 1
   return counts
 })
 
-onMounted(async () => { await load(); schedule() })
-onBeforeUnmount(() => { if (timer !== null) clearInterval(timer) })
+onMounted(async () => {
+  await load()
+  const requestedId = typeof route.query.task === 'string' ? route.query.task : null
+  const requested = requestedId ? tasks.value.find((task) => task.id === requestedId) : null
+  if (requested) await open(requested)
+  schedule()
+})
+onBeforeUnmount(() => { if (timer !== null) window.clearTimeout(timer) })
 </script>
 
 <template><div class="records-page">
@@ -123,12 +135,9 @@ onBeforeUnmount(() => { if (timer !== null) clearInterval(timer) })
         <button type="button" :class="{ active: statusFilter === 'ALL' }" @click="statusFilter = 'ALL'">
           全部 {{ statusCounts.ALL }}
         </button>
-        <button v-for="status in terminalStatuses" :key="status" type="button"
+        <button v-for="status in STATUS_FILTERS" :key="status" type="button"
           :class="{ active: statusFilter === status }" @click="statusFilter = status">
-          {{ status }} {{ statusCounts[status] }}
-        </button>
-        <button type="button" :class="{ active: statusFilter === 'RUNNING' }" @click="statusFilter = 'RUNNING'">
-          RUNNING {{ statusCounts.RUNNING }}
+          {{ experimentStatusLabel(status) }} {{ statusCounts[status] }}
         </button>
       </div>
       <div class="sort-controls">
@@ -147,7 +156,7 @@ onBeforeUnmount(() => { if (timer !== null) clearInterval(timer) })
       description="试试放宽筛选条件，或清空关键字。" />
 
     <div v-else class="records-layout">
-      <section class="records-table"><header><span>名称 / 创建时间</span><span>进度</span><span>最佳利用率</span><span>状态</span></header><button v-for="item in visible" :key="item.id" type="button" :class="{ active: selected?.id === item.id }" @click="open(item)"><span><strong>{{ item.name }}</strong><small>{{ date(item.createdAt) }}</small></span><span>{{ item.completedTasks }}/{{ item.totalTasks }}</span><span>{{ percent(item.bestUtilization) }}</span><i :class="item.status.toLowerCase()">{{ item.status }}</i></button></section>
+      <section class="records-table"><header><span>名称 / 创建时间</span><span>进度</span><span>最佳利用率</span><span>状态</span></header><button v-for="item in visible" :key="item.id" type="button" :class="{ active: selected?.id === item.id }" @click="open(item)"><span><strong>{{ item.name }}</strong><small>{{ date(item.createdAt) }}</small></span><span>{{ item.completedTasks }}/{{ item.totalTasks }}</span><span>{{ percent(item.bestUtilization) }}</span><i :class="item.status.toLowerCase()">{{ experimentStatusLabel(item.status) }}</i></button></section>
       <aside class="record-detail"><template v-if="selected"><p class="section-kicker">结果明细</p><h3>{{ selected.name }}</h3><div class="record-summary"><span>平均利用率 <strong>{{ percent(selected.averageUtilization) }}</strong></span><span>合法结果 <strong>{{ selected.legalResults }}/{{ selected.completedTasks }}</strong></span></div><div class="result-list"><div v-for="row in selected.results" :key="`${row.instanceId}-${row.searchAlgorithm}-${row.decoder}-${row.seed}`"><span>{{ row.instanceId }} · {{ row.searchAlgorithm }}</span><small>{{ row.decoder }} · seed {{ row.seed }}</small><strong>{{ percent(row.utilization) }}</strong></div></div>
     <!-- 跨重启的记录同样能回看产物：产物躺在任务目录里，与内存中的任务状态无关。 -->
     <ExperimentArtifacts :task-id="selected.id" :terminal="isTerminal(selected)"
