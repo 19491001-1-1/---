@@ -24,9 +24,8 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: process.env.E2E_BASE_URL ? undefined : {
-    // 直接用本地 vite 二进制而不是 `pnpm dev`：Playwright 通过 /bin/sh 拉起子进程，
-    // 那里不保证有 pnpm（本机就没有），包管理器是否在 PATH 上不该决定用例能否跑。
-    command: 'node_modules/.bin/vite --host 127.0.0.1 --port 5173 --strictPort',
+    // 直接调用 Vite 的 Node 入口，避免 `.bin/vite` 在 Windows 与 POSIX 下采用不同启动文件。
+    command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort',
     url: 'http://127.0.0.1:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

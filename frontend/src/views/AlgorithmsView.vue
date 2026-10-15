@@ -39,7 +39,7 @@ const tab = ref<'search' | 'decoder' | 'history'>('search')
       <div class="family-branches">
         <article><span>PRIMARY</span><strong>产品代表</strong><b>6 + 8</b><p>差异清晰、适合公平实验和主界面选择。</p></article>
         <article><span>ADVANCED</span><strong>高级变体</strong><b>32</b><p>Shelf、Skyline、MaxRects、Tabu 和 GA 的消融对照。</p></article>
-        <article><span>ARCHIVE</span><strong>参数推演</strong><b>72</b><p>Guillotine 的选择、切割与合并策略组合，仅作验证留痕。</p></article>
+        <article><span>VALIDATION</span><strong>参数组合</strong><b>72</b><p>Guillotine 的选择、切割与合并策略组合，用于自动化验证与策略评估。</p></article>
       </div>
     </section>
   </div>

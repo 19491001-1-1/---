@@ -1,6 +1,11 @@
 # 二维矩形排样实验平台
 
-这是一个面向单张固定尺寸板材的 Java 二维矩形排样项目。系统实现构造式启发算法、自由矩形算法和元启发式搜索；搜索层可与 8 个遵守优先级顺序的排样解码器自由组合，并支持批量实验、独立合法性验证、可复现随机种子和 HTML/SVG/CSV 报告。
+[![CI](https://github.com/wwwwuuuu1122/2D-single-sheet-nesting/actions/workflows/ci.yml/badge.svg)](https://github.com/wwwwuuuu1122/2D-single-sheet-nesting/actions/workflows/ci.yml)
+[![Java 17](https://img.shields.io/badge/Java-17%2B-007396.svg)](https://adoptium.net/)
+[![Vue 3](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+这是一个可部署、可恢复、可复现实验的二维矩形排样产品。系统提供 Vue 3 操作界面、Spring Boot API、命令行入口和批量实验引擎；搜索层可与 8 个遵守优先级顺序的排样解码器自由组合，并支持独立合法性验证、跨进程任务恢复及 HTML/SVG/CSV 报告。
 
 ## 功能概览
 
@@ -10,7 +15,7 @@
 - 实验能力：默认参数、同评价次数、同时间预算、参数扫描和多种子统计。
 - 结果验证：`SolutionValidator` 独立检查边界、重叠、零件身份、重复使用和旋转权限。
 
-项目保留 46 个已实现入口。默认报告展示 14 个具代表性的工程入口：搜索优化层承担 60% 的主展示权重，排样引擎层承担 40%，其余评分、属性和消融变体作为高级策略保留。分层依据见 [算法能力分层与留痕](docs/算法能力分层与留痕.md)。
+项目保留 46 个已实现入口。默认报告展示 14 个具代表性的工程入口：搜索优化层承担 60% 的主展示权重，排样引擎层承担 40%，其余评分、属性和消融变体作为高级策略保留。完整目录见 [算法目录](docs/ALGORITHMS.md)。
 
 ## 环境要求
 
@@ -18,8 +23,8 @@
 - Node.js 24.15+（前端开发与生产构建；单 jar profile 会自动下载 24.19.0）
 - pnpm 10+（前端依赖使用 `pnpm-lock.yaml` 锁定）
 - 可选：Playwright 的 Chromium（仅端到端冒烟需要，见「端到端冒烟」）
-- macOS/Linux 可直接运行 Maven Wrapper 和项目脚本
-- Windows 可使用 `mvnw.cmd`
+- macOS/Linux 可运行 Maven Wrapper 与 `.sh` 脚本
+- Windows 10/11 可运行 `mvnw.cmd` 与仓库内的 PowerShell 脚本
 
 算法核心不依赖第三方 Java 库；Web 适配层使用 Spring Boot 3.5、Bean Validation 和 Jackson，测试使用 JUnit 5 与 Spring MockMvc，依赖由 Maven Wrapper 自动管理。
 
@@ -36,10 +41,14 @@
 并强制覆盖率门禁（行 ≥ 80%、分支 ≥ 70%），报告在 `target/site/jacoco/`。仓库内置 Maven Wrapper，
 无需预先安装 Maven。默认构建**不触碰 Node**，前端独立验证，见下文「单 jar 交付」。
 
-如需完全不经过 Maven，也可运行 `./scripts/run-tests.sh`；该脚本使用 JDK 自带工具执行 29 个不依赖
-JUnit 运行时的断言式回归测试。完整验证以 Maven `verify` 为准。
-
 提交前可运行 `./scripts/check-repository.sh`，检查误入仓库的教程、演示文稿、压缩资料和系统文件。CI 会自动执行同一检查。
+
+Windows PowerShell 对应命令：
+
+```powershell
+.\mvnw.cmd clean verify
+.\scripts\check-repository.ps1
+```
 
 ### 运行快速实验
 
@@ -49,6 +58,12 @@ chmod +x scripts/run-experiments.sh
 ```
 
 默认读取 `gcut01/`，使用 QUICK 配置运行 14 个主入口，结果写入 `results/demo/`。
+
+Windows PowerShell：
+
+```powershell
+.\scripts\run-experiments.ps1
+```
 
 ### 构建可执行包
 
@@ -71,6 +86,13 @@ java -jar target/rectangle-packing-1.0.0.jar \
 ```bash
 ./mvnw -Pfrontend package
 java -jar target/rectangle-packing-1.0.0-web.jar   # 打开 http://localhost:8080 即前端
+```
+
+Windows PowerShell：
+
+```powershell
+.\mvnw.cmd -Pfrontend package
+java -jar target\rectangle-packing-1.0.0-web.jar
 ```
 
 该 profile 会用 `frontend-maven-plugin` 把固定版本的 Node 与 pnpm 下载到 `target/`，再复用
@@ -243,7 +265,7 @@ pnpm e2e:install   # 首次需要：下载 Chromium。设 PLAYWRIGHT_SKIP_BROWSE
 pnpm test:e2e
 ```
 
-目前有两条用例。`experiment-smoke` 点选一个 2×2 矩阵、预览规模、启动实验，
+目前有三条用例。`experiment-smoke` 点选一个 2×2 矩阵、预览规模、启动实验，
 等进度到 100% 并确认产物清单出现；`analysis-smoke` 再跑一个小实验进「结果分析」页，
 断言热力图的 4 个格子都有数（无 `.empty`）、排名表给出百分比、箱线图两行且收敛曲线渲染出 SVG
 ——「后端返回的字段与图表要的口径对不对得上」这条接缝只有真实数据能验。
@@ -316,8 +338,8 @@ PACKING_PARALLELISM=8 ./scripts/run-experiments.sh benchmark gcut01 results/benc
 
 时间预算实验（`fair-time`）不允许并行：并行会争抢 CPU，耗时不再公平。
 
-详细字段和统计口径见 [实验与图表使用说明](docs/实验与图表使用说明.md)；
-搜索层的缓存、轻量评分与实测提速见 [性能优化记录](docs/性能优化记录.md)。
+详细字段和统计口径见 [用户与实验指南](docs/USER_GUIDE.md)，算法分层见
+[算法目录](docs/ALGORITHMS.md)。
 
 ## 输出结构
 
@@ -354,7 +376,14 @@ docs/                    架构、算法与实验文档
 .github/workflows/       持续集成配置
 ```
 
-详细设计见 [架构说明](docs/架构说明.md)，测试分层见 [测试策略](docs/测试策略.md)，当前实现状态见 [PROJECT_STATUS.md](PROJECT_STATUS.md)，继续开发前请阅读 [开发交接文档](docs/开发交接文档.md)。
+长期维护文档：
+
+- [用户与实验指南](docs/USER_GUIDE.md)
+- [系统架构](docs/ARCHITECTURE.md)
+- [算法目录](docs/ALGORITHMS.md)
+- [测试与质量保障](docs/TESTING.md)
+- [贡献指南](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
 
 ## 可复现性
 

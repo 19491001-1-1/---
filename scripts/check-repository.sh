@@ -31,4 +31,12 @@ if [[ -d .github/modernize ]]; then
   exit 1
 fi
 
+obsolete_product_docs=(PROJECT_STATUS.md docs/开发交接文档.md docs/性能优化记录.md)
+for obsolete_doc in "${obsolete_product_docs[@]}"; do
+  if [[ -e "$obsolete_doc" ]]; then
+    echo "Repository check failed: obsolete process document found: $obsolete_doc"
+    exit 1
+  fi
+done
+
 echo "Repository structure check passed."

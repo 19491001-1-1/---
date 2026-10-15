@@ -89,3 +89,37 @@ jobs:
           unzip -l target/rectangle-packing-1.0.0-web.jar | grep -q 'static/assets/' \
             || { echo "web jar 内没有 static/assets/，前端资源缺失"; exit 1; }
           echo "单 jar 已包含前端产物"
+
+  # Windows 是正式支持的平台。此任务验证 PowerShell 仓库检查、Maven Wrapper、
+  # 平台相关的 Node 下载以及最终单 jar 的完整性。
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Check repository structure
+        shell: pwsh
+        run: .\scripts\check-repository.ps1
+      - name: Test backend with Maven Wrapper
+        shell: pwsh
+        run: .\mvnw.cmd --batch-mode --no-transfer-progress verify
+      - name: Package single web jar with frontend
+        shell: pwsh
+        run: .\mvnw.cmd --batch-mode --no-transfer-progress -Pfrontend -DskipTests package
+      - name: Assert frontend assets are inside the web jar
+        shell: pwsh
+        run: |
+          $entries = & jar tf target\rectangle-packing-1.0.0-web.jar
+          if ($entries -notcontains 'BOOT-INF/classes/static/index.html') {
+            throw 'web jar 内没有 static/index.html，前端没有被打包进去'
+          }
+          if (-not ($entries | Where-Object { $_ -like 'BOOT-INF/classes/static/assets/*' })) {
+            throw 'web jar 内没有 static/assets/，前端资源缺失'
+          }

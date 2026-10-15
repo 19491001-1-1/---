@@ -1,4 +1,4 @@
-# 实验与图表使用说明
+# 用户与实验指南
 
 ## 1. 一键运行
 
@@ -45,6 +45,12 @@ chmod +x scripts/run-experiments.sh
 ```
 
 `QUICK` 用于检查流程和现场快速演示，搜索规模较小；`STANDARD` 使用项目正式默认参数。
+
+Windows PowerShell 使用同名脚本，参数顺序完全一致：
+
+```powershell
+.\scripts\run-experiments.ps1 benchmark gcut01 results/benchmark 5 20261012 STANDARD
+```
 
 ## 2. 生成的文件
 
