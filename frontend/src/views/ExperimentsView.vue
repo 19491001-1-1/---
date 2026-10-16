@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, ApiClientError } from '@/api/client'
 import StatePanel from '@/components/shared/StatePanel.vue'
 import ExperimentArtifacts from '@/components/shared/ExperimentArtifacts.vue'
+import PageGuide from '@/components/shared/PageGuide.vue'
 import { experimentStatusLabel } from '@/experimentStatus'
 import { useExperimentEvents } from '@/composables/useExperimentEvents'
 import { useCatalogStore } from '@/stores/catalog'
@@ -108,6 +109,11 @@ function toggle(list: string[], value: string) {
 }
 
 const percent = (value: number) => `${(value * 100).toFixed(2)}%`
+const experimentGuide = [
+  {title:'矩阵如何展开',summary:'每个实例、搜索器、解码器和种子的组合都是一个独立任务格子。',body:'总任务数等于四组选项数量的乘积。例如 2 个实例、3 个搜索器、2 个解码器和 5 个种子会产生 60 个格子。预览会把完整请求交给后端复核，避免只依赖前端估算。',points:['至少选择每类中的一个选项','相同种子便于跨算法对齐比较','任务上限保护服务免受误操作','实验名称最长 80 个字符']},
+  {title:'预算与并行怎样选',summary:'评价次数适合公平比较；时间预算贴近响应限制，但必须串行。',body:'评价次数限制每个搜索过程最多解码多少个候选，较少受机器负载影响，可以在独立格子之间并行。时间预算以墙钟毫秒计量，并行会造成 CPU 竞争，因此平台自动把并行度锁定为 1。',points:['并行只发生在独立格子之间','单次搜索内部不并行','并行度最大为 8','时间预算结果不宜跨机器直接对比']},
+  {title:'取消、重试与产物',summary:'取消不会抹掉已完成格子；重试只补缺口；终态后才能导出。',body:'后台任务通过 SSE 实时推送进度，断线后按事件序号续接。取消是协作式的，已经完成的合法结果继续保留；失败或取消后可重试未完成格子。CSV、SVG、HTML 代表最终快照，只在任务进入终态后生成。',points:['关闭页面不会取消后台任务','记录页可以继续观察任务','服务重启后运行中任务会标为取消','已生成产物可以逐项下载']},
+]
 onMounted(async () => {
   const id = typeof route.query.task === 'string' ? route.query.task : null
   if (!id) return
@@ -127,6 +133,7 @@ onBeforeUnmount(() => events.dispose())
 <template>
   <div class="experiments-page">
     <header class="archive-hero"><div><p class="section-kicker">阶段 5 · 公平比较</p><h2>对比实验矩阵</h2></div><p>先预览组合规模，再以统一预算运行。进度通过 SSE 实时返回，断线会自动按事件序号续传。</p></header>
+    <PageGuide label="实验导读" title="用统一协议建立可比较证据" introduction="先理解矩阵规模与预算口径，再启动可能持续较久的后台任务。" :steps="['选择实验矩阵','固定预算与种子','预览后启动','观察、重试并导出']" :sections="experimentGuide" />
     <StatePanel v-if="error" tone="error" title="实验请求失败" :description="error" />
     <div class="experiment-builder">
       <section class="matrix-config">

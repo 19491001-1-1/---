@@ -226,8 +226,9 @@ public final class ExperimentMain {
                 sweep           [数据目录] [输出目录] [实例名=gcut3|all] [重复次数=3] [基础种子] [配置]
                 all             [数据目录] [输出目录] [重复次数=5] [基础种子] [配置] [评价预算] [毫秒预算]
 
-                每个实验目录都会生成runs.csv、summary.csv、overall.csv、traces.csv、
-                algorithm-catalog.csv、report.html、layouts/*.svg和convergence/*.svg。
+                每个实验目录都会生成runs.csv、summary.csv、overall.csv、instance-winners.csv、
+                traces.csv、algorithm-catalog.csv、report.html、layouts/*.svg和convergence/*.svg。
+                full-benchmark 会遍历全部算法；instance-winners.csv 单独列出每个实例的最优算法。
                 """);
     }
 }

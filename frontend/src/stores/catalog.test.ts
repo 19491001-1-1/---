@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useCatalogStore } from './catalog'
 import { ApiClientError } from '@/api/client'
-import type { Meta, PackingDecoder, PackingInstanceSummary, SearchAlgorithm } from '@/types/api'
+import type { AdvancedAlgorithm, Meta, PackingDecoder, PackingInstanceSummary, SearchAlgorithm } from '@/types/api'
 
 const meta: Meta = {
   projectName: '二维排样', version: '1.0.0', javaVersion: '17', productSearchAlgorithms: 6,
@@ -11,11 +11,16 @@ const meta: Meta = {
 }
 const algorithms: SearchAlgorithm[] = [{
   machineValue: 'ILS', chineseName: '迭代局部搜索', englishName: 'ILS',
-  description: '', stochastic: true, supportedBudgetModes: ['EVALUATIONS'],
+  description: '', guide: '详细说明', stochastic: true, supportedBudgetModes: ['EVALUATIONS'],
 }]
 const decoders: PackingDecoder[] = [{
   machineValue: 'SKYLINE', chineseName: '天际线', englishName: 'Skyline',
-  description: '', rotationSupported: true, spaceStructure: 'skyline',
+  description: '', guide: '详细说明', rotationSupported: true, spaceStructure: 'skyline',
+}]
+const advancedAlgorithms: AdvancedAlgorithm[] = [{
+  machineValue: 'SHELF', displayName: 'Shelf-NF', family: 'Shelf',
+  representative: 'SHELF_BAF_GLOBAL', representativeName: 'Shelf-BAF-GLOBAL',
+  idea: '按输入顺序执行 Next-Fit 层架构造', stochastic: false,
 }]
 const instances: PackingInstanceSummary[] = [{
   id: 'gcut1', name: 'gcut1', itemCount: 10, binWidth: 250, binHeight: 250,
@@ -29,6 +34,7 @@ function stubCatalogFetch(overrides: Record<string, Partial<Response>> = {}) {
     '/api/meta': meta,
     '/api/algorithms/search': algorithms,
     '/api/algorithms/decoders': decoders,
+    '/api/algorithms/advanced': advancedAlgorithms,
     '/api/instances': instances,
   }
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -47,7 +53,7 @@ describe('catalog store', () => {
   beforeEach(() => setActivePinia(createPinia()))
   afterEach(() => vi.unstubAllGlobals())
 
-  it('一次加载把四份目录数据都装进来', async () => {
+  it('一次加载把五份目录数据都装进来', async () => {
     stubCatalogFetch()
     const store = useCatalogStore()
 
@@ -56,6 +62,7 @@ describe('catalog store', () => {
     expect(store.meta?.version).toBe('1.0.0')
     expect(store.searchAlgorithms).toHaveLength(1)
     expect(store.decoders).toHaveLength(1)
+    expect(store.advancedAlgorithms).toHaveLength(1)
     expect(store.instances).toHaveLength(1)
     expect(store.loaded).toBe(true)
     expect(store.loading).toBe(false)
@@ -66,13 +73,13 @@ describe('catalog store', () => {
     const store = useCatalogStore()
 
     await store.load()
-    expect(calls).toHaveLength(4)
+    expect(calls).toHaveLength(5)
 
     await store.load()
-    expect(calls, '目录是进程级静态数据，重复进入页面不该再打后端').toHaveLength(4)
+    expect(calls, '目录是进程级静态数据，重复进入页面不该再打后端').toHaveLength(5)
 
     await store.load(true)
-    expect(calls).toHaveLength(8)
+    expect(calls).toHaveLength(10)
   })
 
   it('后端返回错误时记录文案，并允许下次重试', async () => {

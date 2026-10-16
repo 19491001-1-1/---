@@ -39,6 +39,7 @@ public final class ExperimentArtifacts {
         writeRunsCsv(outputDirectory.resolve("runs.csv"), runs);
         writeSummaryCsv(outputDirectory.resolve("summary.csv"), summaries);
         writeOverallCsv(outputDirectory.resolve("overall.csv"), summaries);
+        writeInstanceWinnersCsv(outputDirectory.resolve("instance-winners.csv"), instanceWinners(summaries));
         writeTracesCsv(outputDirectory.resolve("traces.csv"), runs);
         writeAlgorithmCatalogCsv(outputDirectory.resolve("algorithm-catalog.csv"));
         writeBestLayouts(outputDirectory.resolve("layouts"), runs);
@@ -132,6 +133,55 @@ public final class ExperimentArtifacts {
                     f(values.stream().mapToDouble(SummaryObservation::meanMilliseconds).average().orElse(0)),
                     values.stream().mapToInt(SummaryObservation::validRuns).sum(),
                     values.stream().mapToInt(SummaryObservation::runs).sum());
+        }
+        write(file, text);
+    }
+
+    /** 同一实例下按多次合法运行的平均利用率选冠军；浮点误差范围内并列时全部保留。 */
+    public static List<InstanceWinner> instanceWinners(List<SummaryObservation> summaries) {
+        Map<String, List<SummaryObservation>> byInstance = summaries.stream()
+                .filter(summary -> summary.validRuns() > 0)
+                .collect(Collectors.groupingBy(
+                        SummaryObservation::instance, LinkedHashMap::new, Collectors.toList()));
+        List<InstanceWinner> winners = new ArrayList<>();
+        for (Map.Entry<String, List<SummaryObservation>> entry : byInstance.entrySet()) {
+            double bestMean = entry.getValue().stream()
+                    .mapToDouble(SummaryObservation::meanUtilization).max().orElse(0.0);
+            List<SummaryObservation> tied = entry.getValue().stream()
+                    .filter(summary -> Math.abs(summary.meanUtilization() - bestMean) <= 1.0e-9)
+                    .sorted(Comparator.comparingInt(summary -> AlgorithmCatalog.displayOrder(summary.algorithm())))
+                    .toList();
+            for (SummaryObservation summary : tied) {
+                winners.add(new InstanceWinner(
+                        entry.getKey(), summary.algorithm(), summary.meanUtilization(),
+                        summary.bestUtilization(), summary.standardDeviation(), summary.runs(),
+                        summary.validRuns(), summary.bestPackedArea(), tied.size() > 1));
+            }
+        }
+        winners.sort(Comparator.comparing(InstanceWinner::instance, ExperimentArtifacts::naturalNameCompare)
+                .thenComparingInt(winner -> AlgorithmCatalog.displayOrder(winner.algorithm())));
+        return List.copyOf(winners);
+    }
+
+    public record InstanceWinner(
+            String instance,
+            AlgorithmId algorithm,
+            double meanUtilization,
+            double bestUtilization,
+            double standardDeviation,
+            int runs,
+            int validRuns,
+            long bestPackedArea,
+            boolean tied) {}
+
+    private static void writeInstanceWinnersCsv(Path file, List<InstanceWinner> winners) throws IOException {
+        StringBuilder text = new StringBuilder(
+                "instance,algorithm,display_name,mean_percent,best_percent,stddev_percent,runs,valid_runs,best_packed_area,tied\n");
+        for (InstanceWinner winner : winners) {
+            row(text, winner.instance(), winner.algorithm().name(), winner.algorithm().displayName(),
+                    f(winner.meanUtilization()), f(winner.bestUtilization()),
+                    f(winner.standardDeviation()), winner.runs(), winner.validRuns(),
+                    winner.bestPackedArea(), winner.tied());
         }
         write(file, text);
     }
@@ -357,7 +407,7 @@ public final class ExperimentArtifacts {
                 .append("<h1>").append(xml(title)).append("</h1><p>生成时间：")
                 .append(java.time.ZonedDateTime.now()).append("</p>")
                 .append("<div class=\"card\"><h2>实验说明</h2><p>随机算法按多个随机种子独立运行；表中标准差反映稳定性。所有结果均经过越界、重叠、零件身份和旋转合法性验证。评价次数是比迭代次数更公平的主要计算量指标。</p>")
-                .append("<p><a href=\"runs.csv\">逐次结果CSV</a> · <a href=\"summary.csv\">分实例汇总CSV</a> · <a href=\"overall.csv\">总览CSV</a> · <a href=\"traces.csv\">收敛轨迹CSV</a> · <a href=\"algorithm-catalog.csv\">完整算法能力目录</a></p></div>")
+                .append("<p><a href=\"runs.csv\">逐次结果CSV</a> · <a href=\"summary.csv\">分实例汇总CSV</a> · <a href=\"overall.csv\">总览CSV</a> · <a href=\"instance-winners.csv\">逐实例冠军CSV</a> · <a href=\"traces.csv\">收敛轨迹CSV</a> · <a href=\"algorithm-catalog.csv\">完整算法能力目录</a></p></div>")
                 .append("<div class=\"card\"><h2>算法总览</h2><table><thead><tr><th>算法</th><th>实例数</th><th>实例平均利用率</th><th>平均最好利用率</th><th>平均名次</th><th>平均耗时(ms)</th><th>合法运行</th></tr></thead><tbody>");
         for (AlgorithmId algorithm : AlgorithmCatalog.displayAlgorithms()) {
             List<SummaryObservation> values = groups.get(algorithm);
@@ -370,6 +420,19 @@ public final class ExperimentArtifacts {
                     .append(f(values.stream().mapToDouble(SummaryObservation::meanMilliseconds).average().orElse(0))).append("</td><td class=\"ok\">")
                     .append(values.stream().mapToInt(SummaryObservation::validRuns).sum()).append('/')
                     .append(values.stream().mapToInt(SummaryObservation::runs).sum()).append("</td></tr>");
+        }
+        html.append("</tbody></table></div>");
+        html.append("<div class=\"card\"><h2>逐实例最优算法</h2>")
+                .append("<p>在本次实验包含的全部算法中，按同一实例的多次合法运行平均利用率选冠军；并列冠军全部列出。最好值用于核对，不参与冠军判定。</p>")
+                .append("<table><thead><tr><th>实例</th><th>最优算法</th><th>平均利用率</th><th>最好利用率</th><th>标准差</th><th>合法运行</th><th>并列</th></tr></thead><tbody>");
+        for (InstanceWinner winner : instanceWinners(summaries)) {
+            html.append("<tr><td>").append(xml(winner.instance())).append("</td><td>")
+                    .append(xml(winner.algorithm().displayName())).append("</td><td>")
+                    .append(f(winner.meanUtilization())).append("%</td><td>")
+                    .append(f(winner.bestUtilization())).append("%</td><td>")
+                    .append(f(winner.standardDeviation())).append("</td><td class=\"ok\">")
+                    .append(winner.validRuns()).append('/').append(winner.runs()).append("</td><td>")
+                    .append(winner.tied() ? "是" : "否").append("</td></tr>");
         }
         html.append("</tbody></table></div>");
         String budgetKind = runs.get(0).budgetKind();

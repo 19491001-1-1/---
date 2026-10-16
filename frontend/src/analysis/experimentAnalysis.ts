@@ -25,6 +25,17 @@ export interface AlgorithmSummary {
   meanRank: number
 }
 
+export interface InstanceWinner {
+  instanceId: string
+  algorithm: string
+  meanUtilization: number
+  bestUtilization: number
+  standardDeviation: number
+  runs: number
+  validRuns: number
+  tied: boolean
+}
+
 /** 箱线图的五个数与离群值。 */
 export interface BoxplotStats {
   min: number
@@ -130,6 +141,50 @@ export function summarizeByAlgorithm(cells: AnalysisCell[]): AlgorithmSummary[] 
       }
       return left.algorithm.localeCompare(right.algorithm)
     })
+}
+
+/** 按实例从当前实验包含的全部算法中选平均利用率冠军；并列冠军合并到同一行。 */
+export function winnersByInstance(cells: AnalysisCell[]): InstanceWinner[] {
+  const groups = new Map<string, Map<string, AnalysisCell[]>>()
+  for (const cell of cells) {
+    const algorithms = groups.get(cell.instanceId) ?? new Map<string, AnalysisCell[]>()
+    const values = algorithms.get(cell.searchAlgorithm) ?? []
+    values.push(cell)
+    algorithms.set(cell.searchAlgorithm, values)
+    groups.set(cell.instanceId, algorithms)
+  }
+
+  const collator = new Intl.Collator('zh-CN', { numeric: true })
+  return [...groups].sort(([left], [right]) => collator.compare(left, right)).flatMap(([instanceId, algorithms]) => {
+    const candidates = [...algorithms].map(([algorithm, runs]) => {
+      const valid = runs.filter((run) => run.legal)
+      const utilization = valid.map((run) => run.utilization)
+      const average = mean(utilization)
+      const variance = utilization.length === 0
+        ? 0
+        : mean(utilization.map((value) => (value - average) ** 2))
+      return {
+        algorithm, runs: runs.length, validRuns: valid.length,
+        meanUtilization: average,
+        bestUtilization: utilization.length === 0 ? 0 : Math.max(...utilization),
+        standardDeviation: Math.sqrt(variance),
+      }
+    }).filter((candidate) => candidate.validRuns > 0)
+    if (candidates.length === 0) return []
+    const bestMean = Math.max(...candidates.map((candidate) => candidate.meanUtilization))
+    const tied = candidates.filter((candidate) => Math.abs(candidate.meanUtilization - bestMean) <= 1e-9)
+      .sort((left, right) => left.algorithm.localeCompare(right.algorithm))
+    return tied.map((candidate) => ({
+      instanceId,
+      algorithm: candidate.algorithm,
+      meanUtilization: candidate.meanUtilization,
+      bestUtilization: candidate.bestUtilization,
+      standardDeviation: candidate.standardDeviation,
+      runs: candidate.runs,
+      validRuns: candidate.validRuns,
+      tied: tied.length > 1,
+    }))
+  })
 }
 
 /**

@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { api, ApiClientError } from '@/api/client'
 import StatePanel from '@/components/shared/StatePanel.vue'
 import ExperimentArtifacts from '@/components/shared/ExperimentArtifacts.vue'
+import PageGuide from '@/components/shared/PageGuide.vue'
 import { experimentStatusLabel } from '@/experimentStatus'
 import { isTerminal, terminalStatuses, type ExperimentTask } from '@/types/api'
 
@@ -109,6 +110,11 @@ const statusCounts = computed(() => {
   for (const task of tasks.value) counts[task.status] = (counts[task.status] ?? 0) + 1
   return counts
 })
+const recordsGuide = [
+  {title:'任务状态怎样理解',summary:'排队、运行是过程状态；完成、失败、取消是可长期保留的终态。',body:'排队表示等待后台调度，运行表示至少一个格子正在推进。完成表示所有预定格子均已处理；失败表示执行过程出现错误；取消表示用户中止或服务重启中断。取消任务已经完成的格子仍然有效，不等于整项实验作废。',points:['非终态任务每 3 秒串行轮询','运行任务不会被保留策略清理','取消任务可在实验页补算缺口','状态说明与错误信息分开呈现']},
+  {title:'怎样筛选与复查',summary:'列表用于定位实验，右侧逐格结果用于核对组合和种子。',body:'可以按名称或任务标识搜索，按状态过滤，并按创建时间、进度、最佳利用率或名称排序。选择一条记录后，明细会列出每个实例、搜索器、解码器和种子的利用率，帮助发现异常格子或确认分析汇总来源。',points:['同值排序使用任务 ID 稳定兜底','最佳利用率只代表单个最优格子','平均利用率应结合合法结果数量','详情来自持久化任务而非浏览器缓存']},
+  {title:'保留与导出规则',summary:'记录跨重启恢复，默认只淘汰最旧终态；正式产物在终态后生成。',body:'任务元数据和逐格结果保存在受控目录，服务重启后重新读取。默认最多保留 200 个任务，超过时只删除最旧终态，排队与运行记录不会被清理。终态且已有结果的任务可生成 CSV、SVG、HTML 和元数据。',points:['排队任务重启后自动重新排队','运行任务重启后转为已取消','导出采用暂存目录后整体替换','下载名称必须命中服务端产物清单']},
+]
 
 onMounted(async () => {
   await load()
@@ -122,6 +128,7 @@ onBeforeUnmount(() => { if (timer !== null) window.clearTimeout(timer) })
 
 <template><div class="records-page">
   <header class="archive-hero"><div><p class="section-kicker">真实运行 · 跨重启保留</p><h2>实验记录</h2></div><p>记录与逐格结果都落在后端存储目录里，重启后自动恢复；终态任务可生成 CSV / HTML / SVG 产物并逐个下载。</p></header>
+  <PageGuide label="记录导读" title="定位任务、核对格子、归档产物" introduction="这里是实验的持久化账本，而不仅是临时的运行历史。" :steps="['搜索或筛选任务','检查进度与状态','查看逐格结果','生成并下载产物']" :sections="recordsGuide" />
 
   <StatePanel v-if="error" tone="error" title="记录加载失败" :description="error" action-label="重试" @action="load" />
   <StatePanel v-else-if="!loading && tasks.length === 0" title="暂无实验记录" description="从“对比实验”页面启动第一组真实实验后，记录会立即出现在这里。" />

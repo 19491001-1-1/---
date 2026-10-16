@@ -23,6 +23,7 @@ onMounted(() => catalog.load())
 
 <template>
   <div class="app-shell">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
     <aside class="sidebar" aria-label="主导航">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -50,15 +51,14 @@ onMounted(() => catalog.load())
     <section class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow">排样优化工作台</p>
           <h1>{{ currentTitle }}</h1>
         </div>
         <div class="topbar-meta">
-          <span class="mode-chip">本地实验</span>
+          <span class="service-state"><i :class="{ online: !catalog.error && !catalog.loading }"></i>{{ catalog.loading ? '连接中' : catalog.error ? '服务异常' : '服务正常' }}</span>
           <span class="date-chip">Java {{ catalog.meta?.javaVersion ?? '17+' }}</span>
         </div>
       </header>
-      <main class="page-stage">
+      <main id="main-content" class="page-stage" tabindex="-1">
         <RouterView />
       </main>
     </section>

@@ -60,6 +60,7 @@ Windows PowerShell 使用同名脚本，参数顺序完全一致：
   MaxRects-BEST行还记录采用规则、并列最优规则及五个成员的面积与耗时。
 - `summary.csv`：按“算法—实例”统计最好、最差、平均、中位数、标准差和平均耗时。
 - `overall.csv`：跨实例的平均利用率、平均最好利用率、平均名次和合法运行数。
+- `instance-winners.csv`：逐实例遍历本次实验包含的全部算法，按多种子平均利用率列出冠军；并列冠军全部保留。
 - `traces.csv`：每个算法随候选解评价次数变化的历史最好面积，可用于重新作图。
 - `algorithm-catalog.csv`：全部46个已实现入口的展示层级、家族、代表入口和分层原因。
 - `experiment-metadata.properties`：项目版本、Java/OS、解码器、随机种子和预算口径。

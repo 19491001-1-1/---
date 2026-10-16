@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { api, ApiClientError } from '@/api/client'
-import type { Meta, PackingDecoder, PackingInstanceSummary, SearchAlgorithm } from '@/types/api'
+import type { AdvancedAlgorithm, Meta, PackingDecoder, PackingInstanceSummary, SearchAlgorithm } from '@/types/api'
 
 interface CatalogState {
   meta: Meta | null
   searchAlgorithms: SearchAlgorithm[]
   decoders: PackingDecoder[]
+  advancedAlgorithms: AdvancedAlgorithm[]
   instances: PackingInstanceSummary[]
   loading: boolean
   loaded: boolean
@@ -17,6 +18,7 @@ export const useCatalogStore = defineStore('catalog', {
     meta: null,
     searchAlgorithms: [],
     decoders: [],
+    advancedAlgorithms: [],
     instances: [],
     loading: false,
     loaded: false,
@@ -28,12 +30,13 @@ export const useCatalogStore = defineStore('catalog', {
       this.loading = true
       this.error = null
       try {
-        const [meta, searchAlgorithms, decoders, instances] = await Promise.all([
-          api.meta(), api.searchAlgorithms(), api.decoders(), api.instances(),
+        const [meta, searchAlgorithms, decoders, advancedAlgorithms, instances] = await Promise.all([
+          api.meta(), api.searchAlgorithms(), api.decoders(), api.advancedAlgorithms(), api.instances(),
         ])
         this.meta = meta
         this.searchAlgorithms = searchAlgorithms
         this.decoders = decoders
+        this.advancedAlgorithms = advancedAlgorithms
         this.instances = instances
         this.loaded = true
       } catch (error: unknown) {

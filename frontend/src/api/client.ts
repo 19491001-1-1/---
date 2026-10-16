@@ -12,6 +12,7 @@ import type {
   ExperimentTask,
   ExperimentArtifact,
   ExperimentAnalysis,
+  AdvancedAlgorithm,
 } from '@/types/api'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -58,6 +59,7 @@ export const api = {
   meta: () => request<Meta>('/api/meta'),
   searchAlgorithms: () => request<SearchAlgorithm[]>('/api/algorithms/search'),
   decoders: () => request<PackingDecoder[]>('/api/algorithms/decoders'),
+  advancedAlgorithms: () => request<AdvancedAlgorithm[]>('/api/algorithms/advanced'),
   instances: () => request<PackingInstanceSummary[]>('/api/instances'),
   instance: (id: string) => request<PackingInstanceDetail>(`/api/instances/${encodeURIComponent(id)}`),
   solve: (body: SolveRequest) =>

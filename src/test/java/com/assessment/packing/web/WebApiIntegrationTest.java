@@ -45,12 +45,22 @@ final class WebApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(6)))
                 .andExpect(jsonPath("$[0].machineValue").value("TABU_MOVE"))
+                .andExpect(jsonPath("$[0].guide").value(containsString("禁忌表")))
                 .andExpect(jsonPath("$[5].machineValue").value("GA_TABU"));
 
         mvc.perform(get("/api/algorithms/decoders"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(8)))
-                .andExpect(jsonPath("$[4].machineValue").value("SKYLINE"));
+                .andExpect(jsonPath("$[4].machineValue").value("SKYLINE"))
+                .andExpect(jsonPath("$[4].guide").value(containsString("天际线")));
+
+        mvc.perform(get("/api/algorithms/advanced"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(32)))
+                .andExpect(jsonPath("$[0].machineValue").value("SHELF"))
+                .andExpect(jsonPath("$[0].family").value("Shelf"))
+                .andExpect(jsonPath("$[0].representative").value("SHELF_BAF_GLOBAL"))
+                .andExpect(jsonPath("$[0].idea").value(containsString("Next-Fit")));
     }
 
     @Test

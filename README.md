@@ -349,6 +349,7 @@ PACKING_PARALLELISM=8 ./scripts/run-experiments.sh benchmark gcut01 results/benc
 runs.csv                 每次运行的原始结果
 summary.csv              按算法和实例汇总
 overall.csv              跨实例总览
+instance-winners.csv     每个实例的最优算法（按多种子平均利用率，并列全列）
 traces.csv               收敛轨迹
 algorithm-catalog.csv    完整算法能力目录
 experiment-metadata.properties  运行环境、解码器与预算口径

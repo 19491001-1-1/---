@@ -53,6 +53,7 @@ public final class ExperimentFrameworkTest {
         check(Files.exists(output.resolve("runs.csv")), "必须生成逐次CSV");
         check(Files.exists(output.resolve("summary.csv")), "必须生成汇总CSV");
         check(Files.exists(output.resolve("overall.csv")), "必须生成总览CSV");
+        check(Files.exists(output.resolve("instance-winners.csv")), "必须生成逐实例冠军CSV");
         check(Files.exists(output.resolve("traces.csv")), "必须生成收敛CSV");
         check(Files.exists(output.resolve("algorithm-catalog.csv")), "必须生成完整算法能力目录");
         check(Files.exists(output.resolve("report.html")), "必须生成HTML报告");
@@ -69,6 +70,10 @@ public final class ExperimentFrameworkTest {
         check(Files.exists(output.resolve("convergence/gcut1.svg")), "必须生成收敛曲线SVG");
         check(Files.readString(output.resolve("report.html")).contains("测试实验"),
                 "报告应包含实验标题");
+        check(Files.readString(output.resolve("report.html")).contains("逐实例最优算法"),
+                "报告必须单独展示每个实例的最优算法");
+        check(Files.readString(output.resolve("instance-winners.csv")).contains("gcut1"),
+                "冠军CSV必须包含实例名");
         check(Files.readString(output.resolve("report.html")).contains("算法能力结构"),
                 "报告应展示主入口与高级/历史策略留痕");
         check(Files.readString(output.resolve("algorithm-catalog.csv"))

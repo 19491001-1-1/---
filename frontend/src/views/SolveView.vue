@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { api, ApiClientError } from '@/api/client'
 import PackingCanvas from '@/components/solve/PackingCanvas.vue'
 import StatePanel from '@/components/shared/StatePanel.vue'
+import PageGuide from '@/components/shared/PageGuide.vue'
 import { useSolveForm } from '@/composables/useSolveForm'
 import { useCatalogStore } from '@/stores/catalog'
 import type { PackingInstanceDetail, Placement, SolveResult } from '@/types/api'
@@ -77,6 +78,11 @@ function resetForm() {
 
 const percent = (value: number) => `${(value * 100).toFixed(2)}%`
 const number = (value: number) => value.toLocaleString('zh-CN')
+const solveGuide = [
+  {title:'四项配置分别决定什么',summary:'实例定义题目，搜索器负责探索，解码器负责落位，预算决定搜索深度。',body:'问题实例决定板材和物品；搜索优化器产生候选顺序；排样解码器按顺序构造几何布局；预算限制候选评价数量或运行时间。随机种子只影响随机搜索过程，固定种子可重复同一路径。',points:['旋转开关会改变合法候选空间','搜索器和解码器可以独立组合','评价次数与时间预算不能同时启用','更大预算通常更充分，但不保证严格更优']},
+  {title:'运行后应该看哪里',summary:'先看合法性和利用率，再看布局细节、收敛与专有统计。',body:'合法布局是结果成立的前提。利用率说明板材面积利用程度；装入面积是其绝对量；评价次数和耗时说明计算成本；终止原因解释搜索为何结束。点击画布矩形可核对身份、坐标、尺寸和旋转状态。',points:['绿色合法标记来自后端独立验证','使用高度不等同于利用率','收敛曲线记录历史最好面积','缓存命中率只反映重复候选利用情况']},
+  {title:'什么时候改用对比实验',summary:'单次求解适合理解，不适合单独支撑算法优劣结论。',body:'如果要判断哪个搜索器或解码器更好，应把多个组合放进同一实验，用相同实例、预算、旋转权限和种子运行。随机算法至少使用多个种子，随后在分析页比较分布而不是只挑最好的一次。',points:['探索布局：使用本页','比较组合：使用对比实验','复查原始格子：使用实验记录','形成统计结论：使用结果分析']},
+]
 </script>
 
 <template>
@@ -85,6 +91,7 @@ const number = (value: number) => value.toLocaleString('zh-CN')
       <div><p class="section-kicker">独立选择 · 同一验证</p><h2>组合一次可复现的排样求解</h2></div>
       <p><strong>搜索器</strong>寻找顺序，<strong>解码器</strong>生成布局。两者独立选择，结果由后端统一复核。</p>
     </div>
+    <PageGuide label="求解导读" title="配置、运行、验证、解释" introduction="求解区保持专注；完整口径放在可展开说明中，需要时再阅读。" :steps="['选择实例','组合搜索与解码','设定预算和种子','复核布局与指标']" :sections="solveGuide" />
 
     <StatePanel v-if="catalog.error" tone="error" title="无法加载求解配置" :description="catalog.error" action-label="重试" @action="catalog.load(true)" />
     <StatePanel v-if="requestError" tone="error" title="求解请求失败" :description="requestError" action-label="重试" @action="runSolve" />

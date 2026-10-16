@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boxplot, convergenceSeries, heatmap, quantile, summarizeByAlgorithm } from './experimentAnalysis'
+import { boxplot, convergenceSeries, heatmap, quantile, summarizeByAlgorithm, winnersByInstance } from './experimentAnalysis'
 import type { AnalysisCell } from '@/types/api'
 
 /** 造一个分析格子；只写关心的字段，其余给个无害默认值。 */
@@ -128,6 +128,26 @@ describe('boxplot', () => {
     expect(stats.outliers).toEqual([])
     expect(stats.min).toBeCloseTo(0.9)
     expect(stats.max).toBeCloseTo(0.9)
+  })
+})
+
+describe('winnersByInstance', () => {
+  it('逐实例遍历全部算法，按多种子均值选冠军并保留并列', () => {
+    const winners = winnersByInstance([
+      cell({ instanceId: 'gcut1', searchAlgorithm: 'A', seed: 1, utilization: 0.9 }),
+      cell({ instanceId: 'gcut1', searchAlgorithm: 'A', seed: 2, utilization: 0.7 }),
+      cell({ instanceId: 'gcut1', searchAlgorithm: 'B', seed: 1, utilization: 0.85 }),
+      cell({ instanceId: 'gcut2', searchAlgorithm: 'A', utilization: 0.8 }),
+      cell({ instanceId: 'gcut2', searchAlgorithm: 'B', utilization: 0.8 }),
+      cell({ instanceId: 'gcut2', searchAlgorithm: 'BROKEN', legal: false, utilization: 1 }),
+    ])
+
+    expect(winners.map((winner) => winner.instanceId)).toEqual(['gcut1', 'gcut2', 'gcut2'])
+    expect(winners[0].algorithm).toBe('B')
+    expect(winners[0].meanUtilization).toBeCloseTo(0.85)
+    expect(winners.slice(1).map((winner) => winner.algorithm)).toEqual(['A', 'B'])
+    expect(winners.slice(1).every((winner) => winner.tied)).toBe(true)
+    expect(winners[1].validRuns).toBe(1)
   })
 })
 

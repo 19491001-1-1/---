@@ -83,8 +83,13 @@ describe('AnalysisView', () => {
     await flushPromises()
 
     // 排名表按利用率降序：ILS 0.95 在 SA 0.80 之前。
-    const names = wrapper.findAll('.rank-table tbody tr td.name').map((node) => node.text())
+    const names = wrapper.findAll('.algorithm-rank-table tbody tr td.name').map((node) => node.text())
     expect(names).toEqual(['ILS', 'SA'])
+    // 每个实例必须另外列出冠军，不能混在跨实例总排名里。
+    const winnerRows = wrapper.findAll('.winner-table tbody tr')
+    expect(winnerRows).toHaveLength(1)
+    expect(winnerRows[0].text()).toContain('gcut1')
+    expect(winnerRows[0].text()).toContain('ILS')
     // 热力图给出 2×2 网格（ILS/SA × MAXRECTS/SKYLINE）。
     expect(wrapper.findAll('.heat-cell')).toHaveLength(4)
     // 箱线图每个算法一行，收敛对比拿到当前实例的曲线。

@@ -5,5 +5,6 @@ public record DecoderDto(
         String chineseName,
         String englishName,
         String description,
+        String guide,
         boolean rotationSupported,
         String spaceStructure) {}

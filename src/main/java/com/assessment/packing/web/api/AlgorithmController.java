@@ -1,6 +1,7 @@
 package com.assessment.packing.web.api;
 
 import com.assessment.packing.web.dto.AlgorithmDto;
+import com.assessment.packing.web.dto.AdvancedAlgorithmDto;
 import com.assessment.packing.web.dto.DecoderDto;
 import com.assessment.packing.web.service.CatalogService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,5 +27,10 @@ public final class AlgorithmController {
     @GetMapping("/decoders")
     public List<DecoderDto> decoders() {
         return catalog.decoders();
+    }
+
+    @GetMapping("/advanced")
+    public List<AdvancedAlgorithmDto> advanced() {
+        return catalog.advancedAlgorithms();
     }
 }

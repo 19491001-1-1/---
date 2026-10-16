@@ -18,6 +18,7 @@ export interface SearchAlgorithm {
   chineseName: string
   englishName: string
   description: string
+  guide: string
   stochastic: boolean
   supportedBudgetModes: BudgetMode[]
 }
@@ -27,8 +28,19 @@ export interface PackingDecoder {
   chineseName: string
   englishName: string
   description: string
+  guide: string
   rotationSupported: boolean
   spaceStructure: string
+}
+
+export interface AdvancedAlgorithm {
+  machineValue: string
+  displayName: string
+  family: string
+  representative: string
+  representativeName: string
+  idea: string
+  stochastic: boolean
 }
 
 export interface PackingInstanceSummary {

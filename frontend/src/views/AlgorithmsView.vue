@@ -1,10 +1,22 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import StatePanel from '@/components/shared/StatePanel.vue'
 import { useCatalogStore } from '@/stores/catalog'
 
 const catalog = useCatalogStore()
 const tab = ref<'search' | 'decoder' | 'history'>('search')
+const historyQuery = ref('')
+const activeFamily = ref('全部')
+
+const families = computed(() => ['全部', ...new Set(catalog.advancedAlgorithms.map(item => item.family))])
+const visibleAdvancedAlgorithms = computed(() => {
+  const query = historyQuery.value.trim().toLocaleLowerCase()
+  return catalog.advancedAlgorithms.filter(item => {
+    const inFamily = activeFamily.value === '全部' || item.family === activeFamily.value
+    const searchable = `${item.displayName} ${item.machineValue} ${item.family} ${item.representativeName} ${item.idea}`.toLocaleLowerCase()
+    return inFamily && (!query || searchable.includes(query))
+  })
+})
 </script>
 
 <template>
@@ -23,6 +35,7 @@ const tab = ref<'search' | 'decoder' | 'history'>('search')
       <article v-for="(item, index) in catalog.searchAlgorithms" :key="item.machineValue" class="algorithm-entry">
         <header><span>{{ String(index + 1).padStart(2, '0') }}</span><i :class="{ stochastic: item.stochastic }">{{ item.stochastic ? '随机' : '确定' }}</i></header>
         <h3>{{ item.chineseName }}</h3><small>{{ item.englishName }}</small><p>{{ item.description }}</p>
+        <details class="algorithm-guide"><summary><span>详细解析</span><i>展开</i></summary><p>{{ item.guide }}</p></details>
         <footer><code>{{ item.machineValue }}</code><RouterLink :to="`/solve?search=${item.machineValue}`">用于求解 →</RouterLink></footer>
       </article>
     </div>
@@ -31,16 +44,31 @@ const tab = ref<'search' | 'decoder' | 'history'>('search')
         <header><span>{{ String(index + 1).padStart(2, '0') }}</span><i>支持旋转</i></header>
         <h3>{{ item.chineseName }}</h3><small>{{ item.englishName }}</small><p>{{ item.description }}</p>
         <div class="structure-line"><span>空间结构</span><strong>{{ item.spaceStructure }}</strong></div>
+        <details class="algorithm-guide"><summary><span>详细解析</span><i>展开</i></summary><p>{{ item.guide }}</p></details>
         <footer><code>{{ item.machineValue }}</code><RouterLink :to="`/solve?decoder=${item.machineValue}`">用于求解 →</RouterLink></footer>
       </article>
     </div>
-    <section v-else class="history-map">
-      <div class="family-root"><span>核心模型</span><strong>算法家族</strong><small>46 个稳定入口</small></div>
-      <div class="family-branches">
-        <article><span>PRIMARY</span><strong>产品代表</strong><b>6 + 8</b><p>差异清晰、适合公平实验和主界面选择。</p></article>
-        <article><span>ADVANCED</span><strong>高级变体</strong><b>32</b><p>Shelf、Skyline、MaxRects、Tabu 和 GA 的消融对照。</p></article>
-        <article><span>VALIDATION</span><strong>参数组合</strong><b>72</b><p>Guillotine 的选择、切割与合并策略组合，用于自动化验证与策略评估。</p></article>
+    <section v-else class="history-archive">
+      <header class="history-summary">
+        <div><span>ADVANCED ARCHIVE</span><strong>32 个历史与高级变体</strong><p>按算法家族查看每个变体的核心思想、策略差异与当前代表入口。</p></div>
+        <dl><div><dt>产品代表</dt><dd>14</dd></div><div><dt>高级变体</dt><dd>{{ catalog.advancedAlgorithms.length }}</dd></div><div><dt>参数验证</dt><dd>72</dd></div></dl>
+      </header>
+      <div class="history-toolbar">
+        <label><span>搜索档案</span><input v-model="historyQuery" type="search" placeholder="名称、标识、家族或算法思想" /></label>
+        <div class="family-filter" aria-label="算法家族筛选">
+          <button v-for="family in families" :key="family" :class="{ active: activeFamily === family }" @click="activeFamily = family">{{ family }}</button>
+        </div>
       </div>
+      <p class="history-result-count">显示 {{ visibleAdvancedAlgorithms.length }} / {{ catalog.advancedAlgorithms.length }} 个变体</p>
+      <div v-if="visibleAdvancedAlgorithms.length" class="advanced-grid">
+        <article v-for="(item, index) in visibleAdvancedAlgorithms" :key="item.machineValue" class="advanced-entry">
+          <header><span>{{ item.family }}</span><i :class="{ stochastic: item.stochastic }">{{ item.stochastic ? '随机搜索' : '确定性构造' }}</i></header>
+          <div class="advanced-title"><b>{{ String(index + 1).padStart(2, '0') }}</b><h3>{{ item.displayName }}</h3></div>
+          <p>{{ item.idea }}</p>
+          <footer><span>当前代表</span><strong>{{ item.representativeName }}</strong></footer>
+        </article>
+      </div>
+      <StatePanel v-else title="没有匹配的高级变体" description="请尝试更换算法家族或搜索关键词。" />
     </section>
   </div>
 </template>

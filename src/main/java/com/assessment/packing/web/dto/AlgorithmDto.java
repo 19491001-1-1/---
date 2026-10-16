@@ -7,6 +7,7 @@ public record AlgorithmDto(
         String chineseName,
         String englishName,
         String description,
+        String guide,
         boolean stochastic,
         List<String> supportedBudgetModes) {
     public AlgorithmDto {

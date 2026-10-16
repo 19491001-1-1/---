@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api/client'
 import StatePanel from '@/components/shared/StatePanel.vue'
+import PageGuide from '@/components/shared/PageGuide.vue'
 import { experimentStatusLabel } from '@/experimentStatus'
 import { useCatalogStore } from '@/stores/catalog'
 import type { ExperimentTask } from '@/types/api'
@@ -28,6 +29,11 @@ onMounted(async () => {
 
 const date = (value: string) => new Date(value).toLocaleString('zh-CN')
 const percent = (value: number | null) => value === null ? '—' : `${(value * 100).toFixed(2)}%`
+const overviewGuide = [
+  { title:'这个平台解决什么', summary:'二维矩形选择与排布，不只是把所有物品硬塞进去。', body:'平台面对一张固定尺寸板材与一组候选矩形，在合法约束内尽量装入更大的总面积。搜索器探索物品优先级，解码器把优先级变成坐标；两层解耦后，算法差异才可以被公平观察。', points:['每件物品最多使用一次','只在允许时旋转 90°','结果必须不越界、不重叠','利用率是装入面积除以板材面积'] },
+  { title:'五个页面怎样配合', summary:'求解用于观察，实验用于比较，记录与分析用于形成证据。', body:'先在单次求解里理解一个组合，再在对比实验中固定预算、扩展到多个实例和种子。后台任务进入实验记录，完成的逐格数据在结果分析中汇总成热力图、排名、分布和收敛曲线。', points:['算法档案解释方法思想','项目说明解释工程边界','实验记录跨服务重启保留','终态实验可以生成 CSV / SVG / HTML'] },
+  { title:'怎样读懂结果', summary:'一次最好不代表稳定最好，耗时也必须放在同一环境比较。', body:'启发式算法不证明全局最优。严谨结论应固定版本、实例、旋转权限和预算，使用多个随机种子，并同时观察平均利用率、离散程度、合法结果比例和收敛速度。', points:['评价次数预算更利于算法公平比较','时间预算受机器负载影响','随机算法应观察多种子分布','所有布局都由独立验证器复核'] },
+]
 </script>
 
 <template>
@@ -72,6 +78,7 @@ const percent = (value: number | null) => value === null ? '—' : `${(value * 1
         <div><span>{{ metric.label }}</span><small>{{ metric.note }}</small></div>
       </article>
     </section>
+    <PageGuide label="快速入门" title="先理解工作流，再开始计算" introduction="四步建立正确使用顺序；下方三章可展开阅读完整口径。" :steps="['选择问题与算法','运行单次求解','建立公平实验','分析并归档结论']" :sections="overviewGuide" />
 
     <section class="overview-grid">
       <article class="capability-panel">
