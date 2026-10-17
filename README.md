@@ -36,7 +36,7 @@
 ./mvnw clean verify
 ```
 
-命令会按 Java 17 目标编译，运行 **262 个测试**（含 Web API 回归、实验生命周期、事件日志、
+命令会按 Java 17 目标编译，运行 **264 个测试**（含 Web API 回归、实验生命周期、事件日志、
 跨进程恢复、产物生成、存储保留、分析视图与 SPA 回退等），
 并强制覆盖率门禁（行 ≥ 80%、分支 ≥ 70%），报告在 `target/site/jacoco/`。仓库内置 Maven Wrapper，
 无需预先安装 Maven。默认构建**不触碰 Node**，前端独立验证，见下文「单 jar 交付」。
@@ -298,6 +298,8 @@ java -cp out com.assessment.packing.Main \
 ```
 
 未指定参数时使用允许旋转、面积降序和 `ADAPTIVE_GA`（QUICK 配置、Skyline 解码器），以搜索优化算法作为默认演示入口。
+
+当前 `ADAPTIVE_GA` 用变异前子代自身的装入面积计算变异概率，参照值仍为父代种群平均面积和最大面积。子代预评分计入真实解码预算并共用缓存；详细流程见 [算法说明](docs/ALGORITHMS.md#adaptive_ga-的子代评分规则)。`results/ppt-report` 已按新实现重新生成，包含单次运行、分实例汇总、跨实例汇总、轨迹和布局；修改前产物备份在 `results/ppt-report-parent-fitness-20261015`，不与新结果混用。
 
 也可以使用结构化配置文件运行，避免较长的位置参数：
 

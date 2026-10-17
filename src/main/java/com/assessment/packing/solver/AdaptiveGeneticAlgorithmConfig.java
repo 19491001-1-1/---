@@ -1,7 +1,8 @@
 package com.assessment.packing.solver;
 
 /**
- * 自适应 GA 概率边界：低于平均适应度者使用较强探索，高于平均者随质量提高而减少扰动。
+ * 自适应 GA 概率边界：交叉参考较优父代，变异参考变异前子代；
+ * 均以当前父代种群的平均值和最大值为参照。全体同分时取上界。
  */
 public record AdaptiveGeneticAlgorithmConfig(
         double minimumCrossoverRate,

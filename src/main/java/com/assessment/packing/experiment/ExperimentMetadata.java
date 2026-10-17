@@ -15,6 +15,8 @@ final class ExperimentMetadata {
                 experiment=%s
                 generatedAtUtc=%s
                 projectVersion=1.0.0
+                adaptiveGaMutationFitness=PRE_MUTATION_CHILD
+                adaptiveGaReferencePopulation=PARENT_GENERATION
                 dataDirectory=%s
                 algorithms=%s
                 decoder=%s

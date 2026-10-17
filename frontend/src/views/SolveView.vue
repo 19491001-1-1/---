@@ -125,6 +125,9 @@ const solveGuide = [
               <span :class="['type-dot', { stochastic: selectedAlgorithm.stochastic }]"></span>
               <p>{{ selectedAlgorithm.description }}<small>{{ selectedAlgorithm.stochastic ? '随机搜索 · 固定种子可复现' : '确定性算法' }}</small></p>
             </div>
+            <p v-if="form.searchAlgorithm === 'ADAPTIVE_GA'" class="selection-note" data-testid="adaptive-mutation-rule">
+              变异概率依据变异前子代自身的装入面积计算，参照当前父代种群的平均面积和最大面积。预评分未命中缓存计入评价预算；子代改变后需重新评价。
+            </p>
           </div>
         </section>
 

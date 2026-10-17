@@ -216,6 +216,8 @@ public final class ExperimentArtifactService {
                 experiment=%s
                 generatedAtUtc=%s
                 projectVersion=1.0.0
+                adaptiveGaMutationFitness=PRE_MUTATION_CHILD
+                adaptiveGaReferencePopulation=PARENT_GENERATION
                 experimentId=%s
                 instanceIds=%s
                 algorithms=%s

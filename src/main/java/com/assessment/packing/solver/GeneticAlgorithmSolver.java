@@ -221,6 +221,7 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
             completedGenerations++;
             population.sort(BEST_FIRST);
             PopulationFitness fitness = PopulationFitness.of(population);
+            long bestAreaAtGenerationStart = historicalBest.packedArea;
 
             List<Individual> nextPopulation = new ArrayList<>(effectivePopulationSize);
             Set<SequenceKey> nextKeys = new HashSet<>();
@@ -266,8 +267,16 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
 
                 for (int childIndex = 0; childIndex < children.length; childIndex++) {
                     int[] child = children[childIndex];
-                    long referenceFitness = childIndex == 0
-                            ? firstParent.packedArea : secondParent.packedArea;
+                    long referenceFitness = 0;
+                    if (adaptiveConfig != null) {
+                        // 先评价变异前子代；参照值仍来自当前父代种群。
+                        referenceFitness = evaluator.packedArea(child);
+                        if (evaluator.limitReached) break generationFill;
+                        // 后续原地变异不能覆盖已经发现的历史最好排列。
+                        if (referenceFitness > historicalBest.packedArea) {
+                            historicalBest = new Individual(child.clone(), referenceFitness);
+                        }
+                    }
                     double mutationRate = adaptiveConfig == null
                             ? config.mutationRate()
                             : adaptiveRate(
@@ -276,8 +285,10 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
                                     adaptiveConfig.minimumMutationRate(),
                                     adaptiveConfig.maximumMutationRate());
                     adaptiveCounters.recordMutation(mutationRate);
+                    boolean childChanged = false;
                     if (random.nextDouble() < mutationRate) {
                         mutate(child, config.mutationMode(), random);
+                        childChanged = true;
                         mutationEvents++;
                     }
 
@@ -286,13 +297,15 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
                     while (nextKeys.contains(key) && retries < config.duplicateRetries()) {
                         duplicateRejections++;
                         mutate(child, config.mutationMode(), random);
+                        childChanged = true;
                         mutationEvents++;
                         retries++;
                         key = new SequenceKey(child);
                     }
                     if (nextKeys.contains(key)) continue;
 
-                    long childArea = evaluator.packedArea(child);
+                    long childArea = adaptiveConfig != null && !childChanged
+                            ? referenceFitness : evaluator.packedArea(child);
                     if (evaluator.limitReached) break generationFill;
                     nextKeys.add(key);
                     nextPopulation.add(new Individual(child, childArea));
@@ -331,6 +344,8 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
             Individual generationBest = population.get(0);
             if (generationBest.packedArea > historicalBest.packedArea) {
                 historicalBest = generationBest.copy();
+            }
+            if (historicalBest.packedArea > bestAreaAtGenerationStart) {
                 bestImprovements++;
                 noImprovementGenerations = 0;
             } else {
@@ -359,7 +374,7 @@ public class GeneticAlgorithmSolver implements PackingAlgorithm, ConvergenceTrac
         return new Solution(name(), verifiedBest.placements(), System.nanoTime() - start);
     }
 
-    /** 适应度不高于均值时取最大概率；越接近本代最好个体，概率线性降到最小值。 */
+    /** 参照父代种群：不高于均值取上界，达到或超过最大值取下界；全体同分时取上界。 */
     private static double adaptiveRate(
             long individualFitness, PopulationFitness population,
             double minimum, double maximum) {

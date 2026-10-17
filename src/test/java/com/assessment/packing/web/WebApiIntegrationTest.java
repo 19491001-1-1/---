@@ -47,6 +47,7 @@ final class WebApiIntegrationTest {
                 .andExpect(jsonPath("$", hasSize(6)))
                 .andExpect(jsonPath("$[0].machineValue").value("TABU_MOVE"))
                 .andExpect(jsonPath("$[0].guide").value(containsString("禁忌表")))
+                .andExpect(jsonPath("$[4].guide").value(containsString("变异前子代自身")))
                 .andExpect(jsonPath("$[5].machineValue").value("GA_TABU"));
 
         mvc.perform(get("/api/algorithms/decoders"))
