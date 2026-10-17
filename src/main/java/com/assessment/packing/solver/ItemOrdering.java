@@ -6,10 +6,19 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-final class ItemOrdering {
+/**
+ * 零件排序规则到比较器的唯一实现。
+ *
+ * <p>本类与 {@link #sort} 对 {@code solver} 包外的实验入口可见，因为固定顺序解码
+ * 需要复用同一套排序语义：若实验入口另写一份排序，两处比较器一旦分叉，
+ * 就会让"固定排序基线"与"搜索算法初始解"不再是同一件事，实验结论随即失效。
+ * 暴露范围刻意最小：构造器仍为私有，六个比较器辅助方法仍为私有，
+ * 外部只能调用 {@link #sort} 这一条纯函数，无法实例化或复用内部细节。
+ */
+public final class ItemOrdering {
     private ItemOrdering() {}
 
-    static List<Item> sort(List<Item> source, ItemOrder order) {
+    public static List<Item> sort(List<Item> source, ItemOrder order) {
         List<Item> result = new ArrayList<>(source);
         if (order == ItemOrder.INPUT) return result;
         Comparator<Item> byId = Comparator.comparingInt(Item::id);
