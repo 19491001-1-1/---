@@ -33,7 +33,7 @@ public final class AlgorithmCatalog {
 
     /** 稳定入口只是配置标识；家族才是产品目录的组织单位。 */
     public record Configuration(String id, String displayName, String settings,
-                                boolean recommended, boolean compatibilityOnly) {}
+                                boolean recommended, boolean compatibilityOnly, AlgorithmGuides.Guide guide) {}
 
     public record Family(String name, List<Configuration> configurations) {
         public Family { configurations = List.copyOf(configurations); }
@@ -51,7 +51,7 @@ public final class AlgorithmCatalog {
         for (Entry entry : entries()) {
             groups.computeIfAbsent(entry.family(), ignored -> new ArrayList<>()).add(
                     new Configuration(entry.id().name(), entry.id().displayName(), settings(entry.id()),
-                            entry.exposure() == Exposure.PRIMARY, compatibilityOnly(entry.id())));
+                            entry.exposure() == Exposure.PRIMARY, compatibilityOnly(entry.id()), AlgorithmGuides.guide(entry.id())));
         }
         return groups.entrySet().stream().map(entry -> new Family(entry.getKey(), entry.getValue())).toList();
     }

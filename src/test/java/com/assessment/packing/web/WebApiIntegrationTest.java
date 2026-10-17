@@ -66,7 +66,8 @@ final class WebApiIntegrationTest {
         mvc.perform(get("/api/algorithms/families"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.name=='Shelf')].configurations[?(@.id=='SHELF_BAF_WM')].compatibilityOnly").value(hasItem(true)))
-                .andExpect(jsonPath("$[?(@.name=='MaxRects')].configurations[?(@.id=='MAXRECTS_BEST')].settings").value(hasItem(containsString("五次解码"))));
+                .andExpect(jsonPath("$[?(@.name=='MaxRects')].configurations[?(@.id=='MAXRECTS_BEST')].settings").value(hasItem(containsString("五次解码"))))
+                .andExpect(jsonPath("$[?(@.name=='Shelf')].configurations[?(@.id=='SHELF_BAF_WM')].guide.workflow").value(hasItem(containsString("先尝试 WM"))));
     }
 
     @Test

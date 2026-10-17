@@ -51,6 +51,13 @@ export interface AlgorithmFamily {
     settings: string
     recommended: boolean
     compatibilityOnly: boolean
+    guide: {
+      overview: string
+      workflow: string
+      example: string
+      suitable: string
+      limitations: string
+    }
   }[]
 }
 

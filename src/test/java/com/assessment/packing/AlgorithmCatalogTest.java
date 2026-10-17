@@ -21,6 +21,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class AlgorithmCatalogTest {
     @Test
+    void everyConfigurationIncludesACompleteBeginnerGuide() {
+        for (var family : AlgorithmCatalog.families()) {
+            for (var configuration : family.configurations()) {
+                var guide = configuration.guide();
+                for (String section : List.of(guide.overview(), guide.workflow(), guide.example(), guide.suitable(), guide.limitations())) {
+                    assertTrue(section.length() >= 30, configuration.id() + "的介绍章节缺失或过于简略");
+                }
+            }
+        }
+    }
+
+    @Test
     void familiesDescribeEveryConfigurationAndIsolateCompatibilityOptions() {
         var configurations = AlgorithmCatalog.families().stream()
                 .flatMap(family -> family.configurations().stream()).toList();

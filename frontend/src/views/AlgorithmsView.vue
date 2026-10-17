@@ -17,7 +17,7 @@ const visibleFamilies = computed(() => {
   return catalog.algorithmFamilies.filter(family => activeFamily.value === '全部' || family.name === activeFamily.value)
     .map(family => ({ ...family, configurations: family.configurations.filter(item =>
       (showCompatibility.value || !item.compatibilityOnly)
-      && (!query || `${family.name} ${item.id} ${item.displayName} ${item.settings}`.toLocaleLowerCase().includes(query))) }))
+      && (!query || `${family.name} ${item.id} ${item.displayName} ${item.settings} ${Object.values(item.guide).join(' ')}`.toLocaleLowerCase().includes(query))) }))
     .filter(family => family.configurations.length > 0)
 })
 </script>
@@ -63,19 +63,28 @@ const visibleFamilies = computed(() => {
           <button v-for="family in families" :key="family" :class="{ active: activeFamily === family }" @click="activeFamily = family">{{ family }}</button>
         </div>
       </div>
-      <p class="history-result-count">显示 {{ visibleFamilies.length }} 个家族 · 展开查看策略配置；兼容配置默认收起</p>
+      <p class="history-result-count">显示 {{ visibleFamilies.length }} 个家族 · 每个配置均提供新手介绍与详细解析；兼容配置默认收起</p>
       <div v-if="visibleFamilies.length" class="family-catalog">
         <article v-for="family in visibleFamilies" :key="family.name" class="analysis-card">
           <details :open="Boolean(historyQuery.trim()) || activeFamily !== '全部'">
             <summary>{{ family.name }} · {{ family.configurations.length }} 个配置</summary>
-            <div class="table-scroll"><table class="rank-table">
-              <thead><tr><th>策略配置</th><th>配置项与成本</th><th>用途</th></tr></thead>
-              <tbody><tr v-for="item in family.configurations" :key="item.id">
-                <td><strong>{{ item.displayName }}</strong><br /><code>{{ item.id }}</code></td>
-                <td>{{ item.settings }}</td>
-                <td>{{ item.compatibilityOnly ? '兼容 / 消融' : item.recommended ? '默认代表' : '专项配置' }}</td>
-              </tr></tbody>
-            </table></div>
+            <div class="configuration-list">
+              <section v-for="item in family.configurations" :key="item.id" :data-configuration="item.id" class="configuration-entry">
+                <header><div><h3>{{ item.displayName }}</h3><code>{{ item.id }}</code></div>
+                  <span>{{ item.compatibilityOnly ? '兼容 / 消融' : item.recommended ? '默认代表' : '专项配置' }}</span></header>
+                <p class="configuration-settings">{{ item.settings }}</p>
+                <p class="configuration-overview">{{ item.guide.overview }}</p>
+                <details class="algorithm-guide configuration-guide">
+                  <summary><span>{{ item.displayName }} · 详细解析</span><i>展开</i></summary>
+                  <div class="configuration-guide-body">
+                    <section><h4>它是怎样运行的？</h4><p>{{ item.guide.workflow }}</p></section>
+                    <section><h4>用一个例子理解</h4><p>{{ item.guide.example }}</p></section>
+                    <section><h4>适合什么时候使用？</h4><p>{{ item.guide.suitable }}</p></section>
+                    <section><h4>有哪些局限与取舍？</h4><p>{{ item.guide.limitations }}</p></section>
+                  </div>
+                </details>
+              </section>
+            </div>
           </details>
         </article>
       </div>
