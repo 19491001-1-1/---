@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -215,6 +216,21 @@ final class WebApiIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("EXPERIMENT_NOT_FOUND"));
         mvc.perform(post("/api/experiments/{id}/retry", "no-such-task"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("EXPERIMENT_NOT_FOUND"));
+    }
+
+    @Test
+    void deletesATerminalExperimentAndRejectsMissingRecords() throws Exception {
+        String id = createExperiment(1);
+        awaitExperimentTerminal(id);
+
+        mvc.perform(delete("/api/experiments/{id}", id))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/experiments/{id}", id))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("EXPERIMENT_NOT_FOUND"));
+        mvc.perform(delete("/api/experiments/{id}", "no-such-task"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("EXPERIMENT_NOT_FOUND"));
     }

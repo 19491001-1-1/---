@@ -46,5 +46,33 @@ test('子代评分版可生成新的前端实验CSV与版本元数据', async ({
   expect(metadata).toBeDefined()
   const downloaded = await request.get(`/api/experiments/${job.id}/artifacts/${metadata.name}`)
   expect(await downloaded.text()).toContain('adaptiveGaMutationFitness=PRE_MUTATION_CHILD')
+  const removed = await request.delete(`/api/experiments/${job.id}`)
+  expect(removed.status()).toBe(204)
+  expect((await request.get(`/api/experiments/${job.id}`)).status()).toBe(404)
   console.log(`新前端实验：${job.id}`)
+})
+
+test('记录页可确认并删除已结束实验', async ({ page, request }) => {
+  const name = `删除验收-${Date.now()}`
+  const created = await request.post('/api/experiments', { data: {
+    name, instanceIds: ['gcut1'], searchAlgorithms: ['ILS'], decoders: ['SKYLINE'], seeds: [20261017],
+    rotationAllowed: true, budgetMode: 'EVALUATIONS', maxEvaluations: 20,
+    maxMilliseconds: null, parallelism: 1,
+  } })
+  expect(created.ok()).toBe(true)
+  const job = await created.json()
+  await expect.poll(async () => (await (await request.get(`/api/experiments/${job.id}`)).json()).status,
+    { timeout: 30_000 }).toBe('COMPLETED')
+
+  await page.goto('/records')
+  const row = page.locator('.records-table > button').filter({ hasText: name })
+  await expect(row).toBeVisible()
+  await row.click()
+  await expect(page.getByRole('button', { name: '删除记录' })).toBeVisible()
+  await page.screenshot({ path: '/private/tmp/experiment-delete-before.png', fullPage: false })
+  page.once('dialog', dialog => dialog.accept())
+  await page.getByRole('button', { name: '删除记录' }).click()
+  await expect(row).toHaveCount(0)
+  await expect(page.getByText('实验记录已删除')).toBeVisible()
+  await page.screenshot({ path: '/private/tmp/experiment-delete-after.png', fullPage: false })
 })

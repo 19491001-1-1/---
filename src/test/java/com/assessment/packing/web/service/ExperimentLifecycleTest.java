@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -82,6 +83,33 @@ final class ExperimentLifecycleTest {
                 "取消保留的每个结果都必须是合法解");
         assertEquals(settled.completedTasks(), settled.results().size(),
                 "进度数字与明细行数必须一致");
+    }
+
+    @Test
+    void runningExperimentMustBeCancelledBeforeDeletion() {
+        CountDownLatch cellStarted = new CountDownLatch(1);
+        service = blockingService(cellStarted);
+        ExperimentDtos.Task created = service.create(request("删除运行中实验", 1, SLOW_BUDGET));
+        awaitUntil("求解格子实际开始运行", () -> cellStarted.getCount() == 0, 20);
+
+        ApiException exception = assertThrows(ApiException.class, () -> service.delete(created.id()));
+        assertEquals("EXPERIMENT_DELETE_RUNNING", exception.code());
+        assertTrue(Files.exists(storeDirectory.resolve(created.id())), "被拒绝的删除不得破坏任务目录");
+    }
+
+    @Test
+    void deletionRemovesTerminalRecordAndPersistentDirectory() {
+        service = service();
+        ExperimentDtos.Task created = service.create(request("可删除实验", 1, 10));
+        awaitTerminal(created.id(), 30);
+        assertTrue(Files.exists(storeDirectory.resolve(created.id())));
+
+        service.delete(created.id());
+
+        assertTrue(service.list().stream().noneMatch(task -> task.id().equals(created.id())));
+        assertTrue(Files.notExists(storeDirectory.resolve(created.id())), "元数据、结果和产物应随任务目录一起删除");
+        ApiException exception = assertThrows(ApiException.class, () -> service.require(created.id()));
+        assertEquals("EXPERIMENT_NOT_FOUND", exception.code());
     }
 
     /**

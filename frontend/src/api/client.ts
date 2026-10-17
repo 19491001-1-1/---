@@ -80,6 +80,9 @@ export const api = {
     }),
   experiments: () => request<ExperimentTask[]>('/api/experiments'),
   experiment: (id: string) => request<ExperimentTask>(`/api/experiments/${encodeURIComponent(id)}`),
+  deleteExperiment: async (id: string) => {
+    await send(`/api/experiments/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  },
   experimentAnalysis: (id: string) =>
     request<ExperimentAnalysis>(`/api/experiments/${encodeURIComponent(id)}/analysis`),
   cancelExperiment: (id: string) =>

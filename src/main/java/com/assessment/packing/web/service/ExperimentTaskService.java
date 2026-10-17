@@ -402,6 +402,28 @@ public final class ExperimentTaskService {
     }
 
     /**
+     * 删除终态实验的内存记录和整个持久化目录。
+     *
+     * <p>排队或运行中任务仍可能写入结果，因此不允许直接删除；用户应先取消，
+     * 等任务进入终态后再删除。磁盘清理成功后才从内存索引移除，避免出现
+     * 「当前进程里看不到，重启后又恢复」的假删除。
+     */
+    public void delete(String id) {
+        Job job = requireJob(id);
+        synchronized (job.lifecycle) {
+            if (!job.terminal()) {
+                throw new ApiException(HttpStatus.CONFLICT, "EXPERIMENT_DELETE_RUNNING",
+                        "实验仍在运行，请先取消再删除：" + job.status);
+            }
+            if (!store.removeTask(id)) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "EXPERIMENT_DELETE_FAILED",
+                        "实验记录未能完全删除，请稍后重试");
+            }
+            jobs.remove(id, job);
+        }
+    }
+
+    /**
      * 任务的原始请求。产物生成要从中取实例、算法、预算口径与并行度。
      * 包级可见，只给同包的 {@link ExperimentArtifactService} 用；对外接口不暴露这个视图。
      */

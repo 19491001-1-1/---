@@ -27,11 +27,16 @@ const task = (overrides: Partial<ExperimentTask> = {}): ExperimentTask => ({
  */
 function stubFetch(list: ExperimentTask[] | (() => ExperimentTask[])) {
   const urls: string[] = []
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     urls.push(url)
+    if (init?.method === 'DELETE') {
+      return { ok: true, status: 204, headers: new Headers() } as unknown as Response
+    }
+    const current = typeof list === 'function' ? list() : list
+    const id = decodeURIComponent(url.split('/').pop() ?? '')
     const payload = url === '/api/experiments'
-      ? [...(typeof list === 'function' ? list() : list)]
-      : url.includes('/artifacts') ? [] : task()
+      ? [...current]
+      : url.includes('/artifacts') ? [] : current.find((item) => item.id === id) ?? task()
     return {
       ok: true, status: 200, headers: new Headers(), json: async () => payload,
     } as unknown as Response
@@ -171,6 +176,32 @@ describe('RecordsView', () => {
     await flushPromises()
 
     expect(wrapper.find('.record-detail h3').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('确认后删除终态记录并清空详情', async () => {
+    const urls = stubFetch([task({ id: 'task-1', name: '待删除实验' })])
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    const wrapper = await mountView()
+
+    await wrapper.find('.records-table button').trigger('click')
+    await flushPromises()
+    await wrapper.find('.delete-record').trigger('click')
+    await flushPromises()
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('待删除实验'))
+    expect(urls).toContain('/api/experiments/task-1')
+    expect(names(wrapper)).toEqual([])
+    expect(wrapper.find('.record-detail h3').exists()).toBe(false)
+  })
+
+  it('运行中记录不显示删除入口', async () => {
+    stubFetch([task({ id: 'task-1', status: 'RUNNING' })])
+    const wrapper = await mountView()
+
+    await wrapper.find('.records-table button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.delete-record').exists()).toBe(false)
     wrapper.unmount()
   })
 

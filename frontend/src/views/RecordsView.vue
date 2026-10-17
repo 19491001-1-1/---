@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 import { useRoute } from 'vue-router'
 import { api, ApiClientError } from '@/api/client'
 import StatePanel from '@/components/shared/StatePanel.vue'
@@ -13,6 +14,7 @@ const route = useRoute()
 const selected = ref<ExperimentTask | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+const deleting = ref(false)
 
 const keyword = ref('')
 const statusFilter = ref<'ALL' | ExperimentTask['status']>('ALL')
@@ -46,6 +48,24 @@ async function open(task: ExperimentTask) {
     selected.value = await api.experiment(task.id)
   } catch (reason) {
     error.value = reason instanceof ApiClientError ? reason.message : '无法加载实验详情'
+  }
+}
+
+async function deleteSelected() {
+  const task = selected.value
+  if (!task || !isTerminal(task)) return
+  if (!window.confirm(`确定删除实验“${task.name}”吗？\n\n这会同时删除该实验的逐格结果和已生成产物，且无法撤销。`)) return
+  deleting.value = true
+  error.value = null
+  try {
+    await api.deleteExperiment(task.id)
+    tasks.value = tasks.value.filter((item) => item.id !== task.id)
+    selected.value = null
+    ElMessage.success('实验记录已删除')
+  } catch (reason) {
+    error.value = reason instanceof ApiClientError ? reason.message : '无法删除实验记录'
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -164,7 +184,7 @@ onBeforeUnmount(() => { if (timer !== null) window.clearTimeout(timer) })
 
     <div v-else class="records-layout">
       <section class="records-table"><header><span>名称 / 创建时间</span><span>进度</span><span>最佳利用率</span><span>状态</span></header><button v-for="item in visible" :key="item.id" type="button" :class="{ active: selected?.id === item.id }" @click="open(item)"><span><strong>{{ item.name }}</strong><small>{{ date(item.createdAt) }}</small></span><span>{{ item.completedTasks }}/{{ item.totalTasks }}</span><span>{{ percent(item.bestUtilization) }}</span><i :class="item.status.toLowerCase()">{{ experimentStatusLabel(item.status) }}</i></button></section>
-      <aside class="record-detail"><template v-if="selected"><p class="section-kicker">结果明细</p><h3>{{ selected.name }}</h3><div class="record-summary"><span>平均利用率 <strong>{{ percent(selected.averageUtilization) }}</strong></span><span>合法结果 <strong>{{ selected.legalResults }}/{{ selected.completedTasks }}</strong></span></div><div class="result-list"><div v-for="row in selected.results" :key="`${row.instanceId}-${row.searchAlgorithm}-${row.decoder}-${row.seed}`"><span>{{ row.instanceId }} · {{ row.searchAlgorithm }}</span><small>{{ row.decoder }} · seed {{ row.seed }}</small><strong>{{ percent(row.utilization) }}</strong></div></div>
+      <aside class="record-detail"><template v-if="selected"><div class="record-detail-heading"><div><p class="section-kicker">结果明细</p><h3>{{ selected.name }}</h3></div><button v-if="isTerminal(selected)" type="button" class="delete-record" :disabled="deleting" @click="deleteSelected">{{ deleting ? '删除中…' : '删除记录' }}</button></div><div class="record-summary"><span>平均利用率 <strong>{{ percent(selected.averageUtilization) }}</strong></span><span>合法结果 <strong>{{ selected.legalResults }}/{{ selected.completedTasks }}</strong></span></div><div class="result-list"><div v-for="row in selected.results" :key="`${row.instanceId}-${row.searchAlgorithm}-${row.decoder}-${row.seed}`"><span>{{ row.instanceId }} · {{ row.searchAlgorithm }}</span><small>{{ row.decoder }} · seed {{ row.seed }}</small><strong>{{ percent(row.utilization) }}</strong></div></div>
     <!-- 跨重启的记录同样能回看产物：产物躺在任务目录里，与内存中的任务状态无关。 -->
     <ExperimentArtifacts :task-id="selected.id" :terminal="isTerminal(selected)"
       :has-results="selected.completedTasks > 0" /></template><p v-else>选择左侧记录查看逐组合结果。</p></aside>

@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -50,6 +51,13 @@ public final class ExperimentController {
 
     @GetMapping("/{id}")
     public ExperimentDtos.Task detail(@PathVariable("id") String id) { return service.require(id); }
+
+    /**
+     * 删除一条已结束的实验记录，同时清理其持久化结果和已生成产物。
+     */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable("id") String id) { service.delete(id); }
 
     /**
      * 取消正在运行或排队中的实验。已算出的结果全部保留，可用 {@code /retry} 接着补。

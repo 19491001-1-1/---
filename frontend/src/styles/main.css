@@ -424,6 +424,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .record-detail { padding: 23px; }
 .record-detail > p { color: var(--muted); font-size: 11px; }
 .record-detail h3 { margin-top: 8px; font-size: 19px; }
+.record-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.delete-record { flex: 0 0 auto; padding: 8px 10px; border: 1px solid #e8b8bc; color: var(--red); background: #fff; cursor: pointer; font-size: 9px; font-weight: 700; }
+.delete-record:hover { border-color: var(--red); background: #fff4f4; }
+.delete-record:disabled { opacity: .5; cursor: wait; }
 .record-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
 .record-summary span { display: grid; gap: 5px; padding: 11px; color: var(--muted); background: #f4f7f9; font-size: 9px; }
 .record-summary strong { color: var(--blue); font-size: 14px; }

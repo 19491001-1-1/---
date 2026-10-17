@@ -36,7 +36,7 @@
 ./mvnw clean verify
 ```
 
-命令会按 Java 17 目标编译，运行 **264 个测试**（含 Web API 回归、实验生命周期、事件日志、
+命令会按 Java 17 目标编译，运行 **267 个测试**（含 Web API 回归、实验生命周期、事件日志、
 跨进程恢复、产物生成、存储保留、分析视图与 SPA 回退等），
 并强制覆盖率门禁（行 ≥ 80%、分支 ≥ 70%），报告在 `target/site/jacoco/`。仓库内置 Maven Wrapper，
 无需预先安装 Maven。默认构建**不触碰 Node**，前端独立验证，见下文「单 jar 交付」。
@@ -132,6 +132,7 @@ POST /api/experiments/preview
 POST /api/experiments
 GET  /api/experiments
 GET  /api/experiments/{id}
+DELETE /api/experiments/{id}
 POST /api/experiments/{id}/cancel
 POST /api/experiments/{id}/retry
 GET  /api/experiments/{id}/events
@@ -146,6 +147,10 @@ GET  /api/experiments/{id}/artifacts/{name}
 已完成的结果不会重跑，因此重试的代价与剩余工作量成正比而不是与矩阵规模成正比。
 两者在语义不成立时都返回 `409` 加错误码（`EXPERIMENT_NOT_RUNNING`、`EXPERIMENT_ALREADY_RUNNING`、
 `EXPERIMENT_NOTHING_TO_RETRY`），而不是静默成功。
+
+`DELETE /api/experiments/{id}` 删除一条已结束的实验记录，任务元数据、逐格结果、
+布局和已生成产物会一起删除。排队或运行中的实验必须先取消，避免在工作线程
+仍在写入时拆除任务目录。记录页会在删除前再次确认，删除后不可撤销。
 
 `GET /api/experiments/{id}/events` 的每条 SSE 事件都带 `id:` 序号与 `event:` 名
 （`progress` / `complete`）。断线重连时浏览器会带上 `Last-Event-ID` 请求头，服务端据此补发
