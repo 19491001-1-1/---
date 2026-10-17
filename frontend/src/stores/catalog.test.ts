@@ -35,6 +35,7 @@ function stubCatalogFetch(overrides: Record<string, Partial<Response>> = {}) {
     '/api/algorithms/search': algorithms,
     '/api/algorithms/decoders': decoders,
     '/api/algorithms/advanced': advancedAlgorithms,
+    '/api/algorithms/families': [{ name: 'Shelf', configurations: [] }],
     '/api/instances': instances,
   }
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -63,6 +64,7 @@ describe('catalog store', () => {
     expect(store.searchAlgorithms).toHaveLength(1)
     expect(store.decoders).toHaveLength(1)
     expect(store.advancedAlgorithms).toHaveLength(1)
+    expect(store.algorithmFamilies[0].name).toBe('Shelf')
     expect(store.instances).toHaveLength(1)
     expect(store.loaded).toBe(true)
     expect(store.loading).toBe(false)
@@ -73,13 +75,13 @@ describe('catalog store', () => {
     const store = useCatalogStore()
 
     await store.load()
-    expect(calls).toHaveLength(5)
+    expect(calls).toHaveLength(6)
 
     await store.load()
-    expect(calls, '目录是进程级静态数据，重复进入页面不该再打后端').toHaveLength(5)
+    expect(calls, '目录是进程级静态数据，重复进入页面不该再打后端').toHaveLength(6)
 
     await store.load(true)
-    expect(calls).toHaveLength(10)
+    expect(calls).toHaveLength(12)
   })
 
   it('后端返回错误时记录文案，并允许下次重试', async () => {

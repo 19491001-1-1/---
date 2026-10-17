@@ -15,7 +15,7 @@
 - 实验能力：默认参数、同评价次数、同时间预算、参数扫描和多种子统计。
 - 结果验证：`SolutionValidator` 独立检查边界、重叠、零件身份、重复使用和旋转权限。
 
-项目保留 46 个已实现入口。默认报告展示 14 个具代表性的工程入口：搜索优化层承担 60% 的主展示权重，排样引擎层承担 40%，其余评分、属性和消融变体作为高级策略保留。完整目录见 [算法目录](docs/ALGORITHMS.md)。
+产品按算法家族与策略配置组织。46 个稳定配置入口包含评分规则、禁忌记忆和组合策略，不代表 46 种独立算法；默认报告使用 14 个代表配置。五个非 NF 的 Shelf-WM 组合归入兼容配置，完整遍历仍覆盖它们并逐实例列出最优配置。完整目录见 [算法目录](docs/ALGORITHMS.md)。
 
 ## 环境要求
 
@@ -36,7 +36,7 @@
 ./mvnw clean verify
 ```
 
-命令会按 Java 17 目标编译，运行 **257 个测试**（含 Web API 回归、实验生命周期、事件日志、
+命令会按 Java 17 目标编译，运行 **261 个测试**（含 Web API 回归、实验生命周期、事件日志、
 跨进程恢复、产物生成、存储保留、分析视图与 SPA 回退等），
 并强制覆盖率门禁（行 ≥ 80%、分支 ≥ 70%），报告在 `target/site/jacoco/`。仓库内置 Maven Wrapper，
 无需预先安装 Maven。默认构建**不触碰 Node**，前端独立验证，见下文「单 jar 交付」。
@@ -313,7 +313,7 @@ java -jar target/rectangle-packing-1.0.0.jar --config config/example.properties
 # 14个工程主入口（搜索优化在前，排样引擎随后）
 ./scripts/run-experiments.sh benchmark gcut01 results/benchmark 5 20261012 STANDARD
 
-# 全部46个已实现入口
+# 全部46个策略配置（含兼容配置，逐实例列出最优）
 ./scripts/run-experiments.sh full-benchmark gcut01 results/full-catalog 1 20261012 QUICK
 
 # 专项实验

@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia'
 import { api, ApiClientError } from '@/api/client'
-import type { AdvancedAlgorithm, Meta, PackingDecoder, PackingInstanceSummary, SearchAlgorithm } from '@/types/api'
+import type { AdvancedAlgorithm, AlgorithmFamily, Meta, PackingDecoder, PackingInstanceSummary, SearchAlgorithm } from '@/types/api'
 
 interface CatalogState {
   meta: Meta | null
   searchAlgorithms: SearchAlgorithm[]
   decoders: PackingDecoder[]
   advancedAlgorithms: AdvancedAlgorithm[]
+  algorithmFamilies: AlgorithmFamily[]
   instances: PackingInstanceSummary[]
   loading: boolean
   loaded: boolean
@@ -19,6 +20,7 @@ export const useCatalogStore = defineStore('catalog', {
     searchAlgorithms: [],
     decoders: [],
     advancedAlgorithms: [],
+    algorithmFamilies: [],
     instances: [],
     loading: false,
     loaded: false,
@@ -30,14 +32,15 @@ export const useCatalogStore = defineStore('catalog', {
       this.loading = true
       this.error = null
       try {
-        const [meta, searchAlgorithms, decoders, advancedAlgorithms, instances] = await Promise.all([
-          api.meta(), api.searchAlgorithms(), api.decoders(), api.advancedAlgorithms(), api.instances(),
+        const [meta, searchAlgorithms, decoders, advancedAlgorithms, instances, algorithmFamilies] = await Promise.all([
+          api.meta(), api.searchAlgorithms(), api.decoders(), api.advancedAlgorithms(), api.instances(), api.algorithmFamilies(),
         ])
         this.meta = meta
         this.searchAlgorithms = searchAlgorithms
         this.decoders = decoders
         this.advancedAlgorithms = advancedAlgorithms
         this.instances = instances
+        this.algorithmFamilies = algorithmFamilies
         this.loaded = true
       } catch (error: unknown) {
         this.error = error instanceof ApiClientError ? error.message : '加载平台数据时发生未知错误'

@@ -1,5 +1,9 @@
 # 系统架构
 
+算法目录以 `AlgorithmCatalog.families()` 为统一家族配置模型，通过 `GET /api/algorithms/families` 提供给前端。评分、取件、WM 与禁忌记忆均作为配置差异说明，五个非 NF 的 Shelf-WM 配置带 `compatibilityOnly` 标记并默认收起；旧标识和既有接口继续可读。完整遍历覆盖全部配置。
+
+Web 实验报告额外传入带解码器身份的 `ConfigurationRun`，按实例、搜索器、解码器聚合合法运行后选冠军。`instance-winners.csv` 的 Web 格式包含 `decoder` 列，普通 CLI 实验格式维持既有固定解码器格式；双方均保留并列冠军与合法运行计数。
+
 ## 设计目标
 
 系统将问题模型、求解器、结果验证与实验统计分离，使各算法可以共享数据读取、配置、合法性检查和报告生成流程。

@@ -79,7 +79,7 @@ function scheduleRefresh() {
 const cells = computed(() => analysis.value?.cells ?? [])
 const summaries = computed(() => summarizeByAlgorithm(cells.value))
 const winners = computed(() => winnersByInstance(cells.value))
-const algorithmCount = computed(() => new Set(cells.value.map((cell) => cell.searchAlgorithm)).size)
+const algorithmCount = computed(() => new Set(cells.value.map((cell) => `${cell.searchAlgorithm}/${cell.decoder}`)).size)
 const boxes = computed(() => summaries.value.map((summary) => ({
   label: summary.algorithm,
   stats: boxplot(cells.value
@@ -169,10 +169,10 @@ void loadTasks()
 
       <section class="analysis-grid">
         <article class="analysis-card wide">
-          <header><h3>逐实例最优算法</h3><span>遍历本实验 {{ algorithmCount }} 个算法 · 按多种子均值判定</span></header>
+          <header><h3>逐实例最优配置</h3><span>{{ missing > 0 ? '当前已有结果 · 暂定' : '已完成结果' }} · {{ algorithmCount }} 个搜索器 × 解码器配置 · 按合法运行均值判定</span></header>
           <div class="table-scroll">
             <table class="rank-table winner-table">
-              <thead><tr><th>实例</th><th>最优算法</th><th>平均利用率</th><th>最好</th><th>标准差</th><th>合法运行</th></tr></thead>
+              <thead><tr><th>实例</th><th>最优搜索器 × 解码器</th><th>平均利用率</th><th>最好</th><th>标准差</th><th>合法运行</th></tr></thead>
               <tbody><tr v-for="winner in winners" :key="`${winner.instanceId}-${winner.algorithm}`">
                 <td class="name">{{ winner.instanceId }}</td>
                 <td><strong>{{ winner.algorithm }}</strong><small v-if="winner.tied">（并列）</small></td>

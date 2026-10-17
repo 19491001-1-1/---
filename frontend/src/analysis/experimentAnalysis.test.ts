@@ -143,11 +143,22 @@ describe('winnersByInstance', () => {
     ])
 
     expect(winners.map((winner) => winner.instanceId)).toEqual(['gcut1', 'gcut2', 'gcut2'])
-    expect(winners[0].algorithm).toBe('B')
+    expect(winners[0].algorithm).toBe('B × SKYLINE')
     expect(winners[0].meanUtilization).toBeCloseTo(0.85)
-    expect(winners.slice(1).map((winner) => winner.algorithm)).toEqual(['A', 'B'])
+    expect(winners.slice(1).map((winner) => winner.algorithm)).toEqual(['A × SKYLINE', 'B × SKYLINE'])
     expect(winners.slice(1).every((winner) => winner.tied)).toBe(true)
     expect(winners[1].validRuns).toBe(1)
+  })
+
+  it('同一搜索器的不同解码器分别参赛，避免均值混合掩盖最佳配置', () => {
+    const winners = winnersByInstance([
+      cell({ searchAlgorithm: 'ILS', decoder: 'SKYLINE', utilization: 0.95 }),
+      cell({ searchAlgorithm: 'ILS', decoder: 'MAXRECTS', utilization: 0.5 }),
+      cell({ searchAlgorithm: 'SA', decoder: 'SKYLINE', utilization: 0.85 }),
+    ])
+    expect(winners).toHaveLength(1)
+    expect(winners[0].algorithm).toBe('ILS × SKYLINE')
+    expect(winners[0].meanUtilization).toBeCloseTo(0.95)
   })
 })
 

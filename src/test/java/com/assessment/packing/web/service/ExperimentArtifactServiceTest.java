@@ -78,7 +78,7 @@ final class ExperimentArtifactServiceTest {
                 java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
 
         assertTrue(names.containsAll(List.of("runs.csv", "summary.csv", "overall.csv",
-                        "traces.csv", "algorithm-catalog.csv", "report.html",
+                        "traces.csv", "algorithm-catalog.csv", "report.html", "instance-winners.csv",
                         "experiment-metadata.properties")),
                 "核心产物必须齐备，实际=" + names);
         assertTrue(names.stream().anyMatch(name -> name.startsWith("layouts/")),
@@ -92,6 +92,9 @@ final class ExperimentArtifactServiceTest {
                 "report.html 链接的元数据文件必须存在");
         String report = Files.readString(directory.resolve("report.html"));
         assertTrue(report.contains("experiment-metadata.properties"));
+        assertTrue(report.contains("逐实例最优配置"));
+        String winners = Files.readString(directory.resolve("instance-winners.csv"));
+        assertTrue(winners.startsWith("instance,algorithm,decoder,"));
         for (String name : names) {
             assertTrue(Files.isRegularFile(directory.resolve(name)), "清单里的每个名字都必须有文件：" + name);
         }

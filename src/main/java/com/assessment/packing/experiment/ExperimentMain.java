@@ -26,6 +26,7 @@ public final class ExperimentMain {
             case "full-benchmark" -> runFullBenchmark(args, data, output);
             case "shelf" -> runShelf(args, data, output);
             case "skyline" -> runSkyline(args, data, output);
+            case "skyline-wm-ablation" -> SkylineWmAblation.run(data, output);
             case "maxrects" -> runMaxRects(args, data, output);
             case "aco" -> runAntColony(args, data, output);
             case "fair-evaluations" -> runFairEvaluations(args, data, output);
@@ -60,7 +61,7 @@ public final class ExperimentMain {
         ExperimentProfile profile = ExperimentProfile.parse(arg(args, 5, "STANDARD"));
         new ExperimentRunner().run(options(
                 data, output, SolverFactory.allAlgorithms(), repetitions, baseSeed, profile,
-                SearchLimit.unlimited(), "完整46入口实现档案", "FULL_CATALOG", 0));
+                SearchLimit.unlimited(), "全部家族策略配置对比（含兼容配置）", "FULL_CATALOG", 0));
     }
 
     private static void runFairEvaluations(String[] args, Path data, Path output) throws Exception {
@@ -218,6 +219,7 @@ public final class ExperimentMain {
                 full-benchmark   [数据目录] [输出目录] [重复次数=5] [基础种子=20261012] [QUICK|STANDARD]
                 shelf           [数据目录] [输出目录] [重复次数=20] [基础种子=20261013]
                 skyline          [数据目录] [输出目录] [重复次数=20] [基础种子=20261013]
+                skyline-wm-ablation [数据目录] [输出目录]（固定评分、取件模式，仅切换WM）
                 maxrects        [数据目录] [输出目录] [重复次数=20] [基础种子=20261012]
                 aco             [数据目录] [输出目录] [重复次数=20] [基础种子=20261013] [QUICK|STANDARD]
                 fair-evaluations [数据目录] [输出目录] [评价预算=20000] [重复次数=5] [基础种子] [配置]

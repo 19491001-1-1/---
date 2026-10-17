@@ -12,10 +12,10 @@ const chapters: Chapter[] = [
     {title:'优化目标',text:'核心目标是在不越界、不重叠、不重复使用物品且尊重旋转权限的前提下，尽量增大装入总面积。利用率等于装入面积除以板材面积。搜索算法负责寻找更有希望的物品优先级，解码器负责把优先级转换成坐标布局，两者共同决定最终质量。'}],
     points:['矩形必须完全位于板材内部','任意两个已放置矩形不得发生面积重叠','同一物品最多使用一次，身份必须来自原实例','只有被授权的物品才允许旋转 90°','启发式算法追求高质量解，但不承诺全局最优'], tags:['单张板材','二维矩形','可选旋转','最大化面积'] },
   { id:'algorithms', number:'02', eyebrow:'Algorithm system', title:'搜索优化器与排样解码器', summary:'把“决定先尝试谁”和“决定放在哪里”拆成两个独立问题，使算法可以自由组合、单独验证。', paragraphs:[
-    {title:'搜索器负责探索',text:'遗传算法、粒子群、差分进化、模拟退火、禁忌搜索和蚁群算法不会直接绘制矩形。它们维护、扰动并评价物品顺序或优先级，反复询问“这个候选顺序经过解码后能装下多少面积”，再根据群体协作、概率接受、记忆禁忌或信息素机制继续探索。固定种子让随机搜索可以复现。'},
+    {title:'搜索器负责探索',text:'平台提供禁忌搜索、模拟退火、蚁群优化、迭代局部搜索、自适应遗传算法和遗传禁忌混合搜索。它们维护、扰动并评价物品顺序或优先级，反复询问“这个候选顺序经过解码后能装下多少面积”，再根据概率接受、禁忌记忆、信息素或种群机制继续探索。固定种子让随机搜索可以复现。'},
     {title:'解码器负责落地',text:'Shelf、Floor-Ceiling、Bottom-Left、Skyline、MaxRects 与 Guillotine 等策略接收候选顺序，按照不同的空间表示和放置规则生成布局。解码器既决定当前矩形的候选位置，也决定空闲空间如何切分、合并和更新；同一搜索器搭配不同解码器，可能得到完全不同的结果。'},
-    {title:'组合的价值',text:'产品层公开 6 种搜索优化器与 8 种顺序感知解码器，可形成 48 种标准组合。算法档案同时保留 46 个已实现入口，包括基础实现、GLOBAL 代表和历史高级变体。这种分层既能比较搜索能力，也能隔离解码策略的影响。'}],
-    points:['搜索预算严格二选一：评价次数或墙钟时间','确定性解码器对相同输入应给出相同布局','随机优化器通过显式种子复现','每次解码结果都可交给独立验证器复核'], tags:['6 个搜索器','8 个产品解码器','48 种组合','46 个档案入口'] },
+    {title:'组合的价值',text:'产品层公开 6 种搜索优化器与 8 种顺序感知解码器，可形成 48 种标准组合。家族目录保留 46 个稳定策略配置，评分规则、禁忌记忆和组合策略均归属对应家族，配置数不代表独立算法数。五个非 NF 的 Shelf-WM 组合仅供兼容与消融，默认收起。逐实例最优结果明确标注获胜的搜索器与解码器。'}],
+    points:['搜索预算严格二选一：评价次数或墙钟时间','确定性解码器对相同输入应给出相同布局','随机优化器通过显式种子复现','每次解码结果都可交给独立验证器复核'], tags:['6 个搜索器','8 个产品解码器','48 种组合','策略按家族组织'] },
   { id:'solve', number:'03', eyebrow:'Single solve', title:'一次求解如何完成', summary:'从表单参数到可交互排样图，每一步都保留可检查的数据，而不是只返回一张图片。', paragraphs:[
     {title:'配置与预检',text:'用户选择实例、搜索器、解码器、随机种子和预算。前端负责易用性提示，后端再次执行权威校验：实例 ID、算法 ID、预算互斥关系和数值范围都必须有效，不能依赖浏览器输入天然可信。'},
     {title:'搜索与保留最优',text:'求解器生成候选优先级，解码器将其转成布局并计算装入面积。搜索循环持续保留历史最好解，同时记录收敛点；达到评价上限、时间上限或收到取消信号后，返回当时已经找到的最好合法结果。'},
@@ -62,7 +62,7 @@ function setAllChapters(open:boolean){ chapterList.value?.querySelectorAll<HTMLD
 
 <template><div class="about-page">
   <header class="about-hero"><div><p class="section-kicker">项目说明 · Project Handbook</p><h2>从一组矩形，到一份<br><span>可验证、可复现</span>的排样结论。</h2></div><p>这不是只会画排样图的演示页面。平台把问题建模、搜索、几何解码、独立校验、批量实验、实时进度、统计分析和产物归档串成一条完整工程链路。</p></header>
-  <section class="about-facts"><div><strong>6 × 8</strong><span>产品算法矩阵</span><small>搜索优化器 × 顺序感知解码器</small></div><div><strong>46</strong><span>档案实现入口</span><small>基础、GLOBAL 与历史高级变体</small></div><div><strong>12</strong><span>GCUT 基准实例</span><small>通过稳定 ID 安全读取</small></div><div><strong>257</strong><span>自动化测试</span><small>核心、Web 与前端多层验证</small></div></section>
+  <section class="about-facts"><div><strong>{{ catalog.searchAlgorithms.length }} × {{ catalog.decoders.length }}</strong><span>产品配置矩阵</span><small>搜索优化器 × 顺序感知解码器</small></div><div><strong>{{ catalog.algorithmFamilies.length }}</strong><span>算法家族</span><small>评分、记忆与回收按配置归类</small></div><div><strong>{{ catalog.instances.length }}</strong><span>GCUT 基准实例</span><small>通过稳定 ID 安全读取</small></div><div><strong>多层</strong><span>自动化验证</span><small>核心、Web、前端与端到端验证</small></div></section>
   <section class="about-definition"><div class="definition-copy"><p class="section-kicker">一句话定义</p><h3>在所有合法摆法中，寻找装入面积尽可能大的那一个。</h3><p>每件物品最多使用一次，可以在授权时旋转 90°；所有矩形必须留在板材内且互不重叠。平台用启发式搜索寻找高质量答案，再由独立验证器检查答案是否合法。</p></div><div class="formula-card"><span>PRIMARY METRIC</span><strong>利用率 = 装入总面积 ÷ 板材面积</strong><small>质量比较还需同时观察预算、种子分布、收敛过程与运行环境。</small></div></section>
   <section class="about-pipeline"><header><div><p class="section-kicker">端到端链路</p><h3>数据怎样变成结论</h3></div><p>每一层只承担清晰职责，并把可检查的数据交给下一层。</p></header><div class="pipeline-grid"><article v-for="item in [['01 · INPUT','实例与约束','读取板材、物品尺寸、身份和旋转权限，建立受控输入。'],['02 · SEARCH','探索优先级','搜索器在预算内产生并改进候选物品顺序。'],['03 · DECODE','生成几何布局','解码器将顺序翻译成坐标、尺寸与旋转状态。'],['04 · VERIFY','独立合法性检查','复核越界、重叠、身份、重复使用和旋转权限。'],['05 · EXPERIMENT','矩阵化运行','跨算法、实例和种子批量执行，持久化每格结果。'],['06 · EXPLAIN','分析与归档','用图表、CSV、SVG 和 HTML 把结果变成证据。']]" :key="item[0]"><span>{{ item[0] }}</span><strong>{{ item[1] }}</strong><p>{{ item[2] }}</p></article></div></section>
   <section class="about-index"><header><div><p class="section-kicker">阅读目录</p><h3>十个章节覆盖完整工程</h3></div><p>点击目录可直接跳到对应章节；每章都可独立展开。</p></header><nav><a v-for="c in chapters" :key="c.id" :href="`#${c.id}`"><span>{{c.number}}</span><strong>{{c.title}}</strong><small>{{c.eyebrow}}</small></a></nav></section>

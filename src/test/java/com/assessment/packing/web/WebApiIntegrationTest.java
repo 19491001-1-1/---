@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -61,6 +62,11 @@ final class WebApiIntegrationTest {
                 .andExpect(jsonPath("$[0].family").value("Shelf"))
                 .andExpect(jsonPath("$[0].representative").value("SHELF_BAF_GLOBAL"))
                 .andExpect(jsonPath("$[0].idea").value(containsString("Next-Fit")));
+
+        mvc.perform(get("/api/algorithms/families"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name=='Shelf')].configurations[?(@.id=='SHELF_BAF_WM')].compatibilityOnly").value(hasItem(true)))
+                .andExpect(jsonPath("$[?(@.name=='MaxRects')].configurations[?(@.id=='MAXRECTS_BEST')].settings").value(hasItem(containsString("五次解码"))));
     }
 
     @Test

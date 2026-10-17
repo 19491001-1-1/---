@@ -143,14 +143,15 @@ export function summarizeByAlgorithm(cells: AnalysisCell[]): AlgorithmSummary[] 
     })
 }
 
-/** 按实例从当前实验包含的全部算法中选平均利用率冠军；并列冠军合并到同一行。 */
+/** 固定搜索器与解码器后聚合种子；每个并列最优配置独立成行。 */
 export function winnersByInstance(cells: AnalysisCell[]): InstanceWinner[] {
   const groups = new Map<string, Map<string, AnalysisCell[]>>()
   for (const cell of cells) {
     const algorithms = groups.get(cell.instanceId) ?? new Map<string, AnalysisCell[]>()
-    const values = algorithms.get(cell.searchAlgorithm) ?? []
+    const configuration = `${cell.searchAlgorithm} × ${cell.decoder}`
+    const values = algorithms.get(configuration) ?? []
     values.push(cell)
-    algorithms.set(cell.searchAlgorithm, values)
+    algorithms.set(configuration, values)
     groups.set(cell.instanceId, algorithms)
   }
 

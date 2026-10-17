@@ -43,6 +43,17 @@ export interface AdvancedAlgorithm {
   stochastic: boolean
 }
 
+export interface AlgorithmFamily {
+  name: string
+  configurations: {
+    id: string
+    displayName: string
+    settings: string
+    recommended: boolean
+    compatibilityOnly: boolean
+  }[]
+}
+
 export interface PackingInstanceSummary {
   id: string
   name: string

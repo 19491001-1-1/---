@@ -4,6 +4,7 @@ import com.assessment.packing.web.dto.AlgorithmDto;
 import com.assessment.packing.web.dto.AdvancedAlgorithmDto;
 import com.assessment.packing.web.dto.DecoderDto;
 import com.assessment.packing.web.service.CatalogService;
+import com.assessment.packing.experiment.AlgorithmCatalog;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,5 +33,10 @@ public final class AlgorithmController {
     @GetMapping("/advanced")
     public List<AdvancedAlgorithmDto> advanced() {
         return catalog.advancedAlgorithms();
+    }
+
+    @GetMapping("/families")
+    public List<AlgorithmCatalog.Family> families() {
+        return AlgorithmCatalog.families();
     }
 }

@@ -153,7 +153,11 @@ public final class ExperimentArtifactService {
         try {
             Files.createDirectories(staging);
             PackingDecoderType decoder = decoderOf(job);
-            ExperimentArtifacts.writeAll(staging, runs, job.name(), decoder);
+            List<ExperimentArtifacts.ConfigurationRun> configurations = java.util.Arrays.stream(job.results())
+                    .filter(java.util.Objects::nonNull)
+                    .map(row -> new ExperimentArtifacts.ConfigurationRun(row.instanceId(), row.searchAlgorithm(),
+                            row.decoder(), row.legal(), row.utilization() * 100)).toList();
+            ExperimentArtifacts.writeAll(staging, runs, job.name(), decoder, configurations);
             writeMetadata(staging, job, decoder);
             // 换手：先把旧的挪开，再把新的挪进来。旧目录只在成功后删除，
             // 因此这一步失败时磁盘上仍是上一次的完整产物，而不是空目录。

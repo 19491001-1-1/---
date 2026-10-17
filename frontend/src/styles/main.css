@@ -297,7 +297,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .history-summary dd { margin: 8px 0 0; color: var(--blue); font: 700 24px ui-monospace, monospace; }
 .history-toolbar { display: grid; grid-template-columns: minmax(260px, .7fr) 1.3fr; gap: 16px; align-items: end; padding: 18px; border: 1px solid var(--line); background: #fff; }
 .history-toolbar label span { display: block; margin-bottom: 7px; color: var(--muted); font-size: 9px; font-weight: 700; }
-.history-toolbar input { width: 100%; height: 38px; padding: 0 12px; border: 1px solid var(--line); background: #f8fafb; color: var(--ink); outline: none; }
+.history-toolbar input[type="search"] { width: 100%; height: 38px; padding: 0 12px; border: 1px solid var(--line); background: #f8fafb; color: var(--ink); outline: none; }
+.history-toolbar input[type="checkbox"] { width: 16px; height: 16px; margin-right: 6px; vertical-align: middle; }
+.history-toolbar .family-filter { grid-column: 1 / -1; }
 .history-toolbar input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 125, 181, .1); }
 .family-filter { display: flex; flex-wrap: wrap; gap: 6px; }
 .family-filter button { padding: 8px 10px; border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: 9px; cursor: pointer; }
@@ -475,6 +477,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .analysis-card > header span { color: var(--muted); font-size: 9px; }
 .table-scroll { max-height: 380px; overflow: auto; }
 .rank-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.family-catalog { display: grid; gap: 14px; }
+.family-catalog summary { cursor: pointer; padding: 10px 0; font-weight: 650; }
+.family-catalog .rank-table td { white-space: normal; text-align: left; min-width: 110px; overflow-wrap: anywhere; }
+.family-catalog .rank-table th { text-align: left; }
+.family-catalog .rank-table code { color: var(--muted); font-size: 10px; }
 .rank-table th, .rank-table td { padding: 7px 8px; border-bottom: 1px solid var(--soft-line); text-align: right; white-space: nowrap; }
 .rank-table th:first-child, .rank-table td:first-child, .rank-table td.name { text-align: left; }
 .rank-table th { position: sticky; top: 0; color: var(--muted); background: #f8fafc; font-size: 9px; }

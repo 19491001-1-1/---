@@ -31,6 +31,50 @@ public final class AlgorithmCatalog {
             AlgorithmId representative,
             String rationale) {}
 
+    /** 稳定入口只是配置标识；家族才是产品目录的组织单位。 */
+    public record Configuration(String id, String displayName, String settings,
+                                boolean recommended, boolean compatibilityOnly) {}
+
+    public record Family(String name, List<Configuration> configurations) {
+        public Family { configurations = List.copyOf(configurations); }
+    }
+
+    public static boolean compatibilityOnly(AlgorithmId id) {
+        return switch (id) {
+            case SHELF_FF_WM, SHELF_BWF_WM, SHELF_BHF_WM, SHELF_BAF_WM, SHELF_WWF_WM -> true;
+            default -> false;
+        };
+    }
+
+    public static List<Family> families() {
+        java.util.Map<String, List<Configuration>> groups = new java.util.LinkedHashMap<>();
+        for (Entry entry : entries()) {
+            groups.computeIfAbsent(entry.family(), ignored -> new ArrayList<>()).add(
+                    new Configuration(entry.id().name(), entry.id().displayName(), settings(entry.id()),
+                            entry.exposure() == Exposure.PRIMARY, compatibilityOnly(entry.id())));
+        }
+        return groups.entrySet().stream().map(entry -> new Family(entry.getKey(), entry.getValue())).toList();
+    }
+
+    public static String settings(AlgorithmId id) {
+        String name = id.name();
+        return switch (family(id)) {
+            case "Shelf" -> "取件=" + (name.endsWith("_GLOBAL") ? "GLOBAL" : "SEQUENTIAL")
+                    + "；选层=" + (id == AlgorithmId.SHELF ? "NF" : name.split("_")[1])
+                    + "；WM=" + name.endsWith("_WM");
+            case "Skyline" -> id == AlgorithmId.SKYLINE ? "堆优化天际线构造"
+                    : "取件=" + (name.endsWith("_WM") ? "SEQUENTIAL" : "GLOBAL")
+                    + "；评分=" + name.split("_")[1] + "；WM=" + name.endsWith("_WM");
+            case "Tabu Search" -> "禁忌记忆=" + name.substring("TABU_".length());
+            case "MaxRects" -> id == AlgorithmId.MAXRECTS_BEST
+                    ? "组合策略：独立运行五种评分后择优；评价成本为五次解码"
+                    : "放置评分=" + name.substring("MAXRECTS_".length());
+            case "Genetic Algorithm" -> id == AlgorithmId.GA ? "固定交叉与变异概率" : "自适应交叉与变异概率";
+            case "Memetic GA" -> "局部强化=" + (id == AlgorithmId.GA_SA ? "模拟退火" : "禁忌搜索");
+            default -> id.displayName();
+        };
+    }
+
     private static final List<AlgorithmId> OPTIMIZERS = List.of(
             AlgorithmId.TABU_MOVE,
             AlgorithmId.SA,
@@ -179,9 +223,9 @@ public final class AlgorithmCatalog {
             case SHELF_NF_GLOBAL, SHELF_FF_GLOBAL, SHELF_BWF_GLOBAL,
                     SHELF_BHF_GLOBAL, SHELF_WWF_GLOBAL ->
                     "与主入口共享 Shelf-GLOBAL 核心，仅替换选层评分规则";
-            case SHELF_NF_WM, SHELF_FF_WM, SHELF_BWF_WM,
-                    SHELF_BHF_WM, SHELF_BAF_WM, SHELF_WWF_WM ->
-                    "已实现的 Shelf 废物地图变体；作为专项/消融策略保留，默认展示用 Skyline-WM 代表碎片回收机制";
+            case SHELF_NF_WM -> "Shelf 的 NF 选层与 WM 回收配置；层尾回看与层内空洞回收是不同机制";
+            case SHELF_FF_WM, SHELF_BWF_WM, SHELF_BHF_WM, SHELF_BAF_WM, SHELF_WWF_WM ->
+                    "兼容配置：当前十二组面积降序实验未观察到相对基础规则的利用率收益；保留复现与消融，不单列为独立算法";
             case SKYLINE_BL, SKYLINE_BF, SKYLINE_BF_WM ->
                     "Skyline-GLOBAL 的评分或 WM 变体；保留专项对比，不占用默认主榜入口";
             case MAXRECTS_BSSF, MAXRECTS_BLSF, MAXRECTS_BAF,

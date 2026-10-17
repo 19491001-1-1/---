@@ -21,6 +21,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class AlgorithmCatalogTest {
     @Test
+    void familiesDescribeEveryConfigurationAndIsolateCompatibilityOptions() {
+        var configurations = AlgorithmCatalog.families().stream()
+                .flatMap(family -> family.configurations().stream()).toList();
+        assertEquals(46, configurations.size());
+        assertEquals(46, configurations.stream().map(AlgorithmCatalog.Configuration::id).distinct().count());
+        assertEquals(5, configurations.stream().filter(AlgorithmCatalog.Configuration::compatibilityOnly).count());
+        assertTrue(configurations.stream().noneMatch(item -> item.compatibilityOnly() && item.recommended()));
+        assertTrue(AlgorithmCatalog.settings(AlgorithmId.SKYLINE_BL).contains("GLOBAL"));
+        assertTrue(AlgorithmCatalog.settings(AlgorithmId.SKYLINE_BL_WM).contains("SEQUENTIAL"));
+        assertTrue(AlgorithmCatalog.settings(AlgorithmId.MAXRECTS_BEST).contains("五次解码"));
+    }
+
+    @Test
     void catalogKeepsAllImplementedEntriesTraceable() {
         assertEquals(46, AlgorithmId.values().length, "已实现入口总数应继续为46");
         assertEquals(46, AlgorithmCatalog.entries().size(), "能力目录必须覆盖全部46个入口");

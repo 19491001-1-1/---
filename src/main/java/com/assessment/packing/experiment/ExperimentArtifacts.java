@@ -34,17 +34,55 @@ public final class ExperimentArtifacts {
             List<RunObservation> runs,
             String title,
             PackingDecoderType decoderType) throws IOException {
+        return writeAll(outputDirectory, runs, title, decoderType, List.of());
+    }
+
+    public record ConfigurationRun(String instance, String algorithm, String decoder,
+                                   boolean valid, double utilizationPercent) {}
+    public record ConfigurationWinner(String instance, String algorithm, String decoder,
+                                      double mean, double best, int runs, int validRuns, boolean tied) {}
+
+    public static List<ConfigurationWinner> configurationWinners(List<ConfigurationRun> runs) {
+        Map<List<String>, List<ConfigurationRun>> groups = runs.stream().collect(Collectors.groupingBy(
+                run -> List.of(run.instance(), run.algorithm(), run.decoder()), LinkedHashMap::new, Collectors.toList()));
+        List<ConfigurationWinner> candidates = new ArrayList<>();
+        groups.forEach((key, values) -> {
+            double[] valid = values.stream().filter(ConfigurationRun::valid).mapToDouble(ConfigurationRun::utilizationPercent).toArray();
+            if (valid.length > 0) candidates.add(new ConfigurationWinner(key.get(0), key.get(1), key.get(2),
+                    mean(valid), java.util.Arrays.stream(valid).max().orElse(0), values.size(), valid.length, false));
+        });
+        Map<String, Double> maxima = new LinkedHashMap<>();
+        candidates.forEach(item -> maxima.merge(item.instance(), item.mean(), Math::max));
+        List<ConfigurationWinner> best = candidates.stream()
+                .filter(item -> Math.abs(item.mean() - maxima.get(item.instance())) <= 1e-9).toList();
+        return best.stream().map(item -> new ConfigurationWinner(item.instance(), item.algorithm(), item.decoder(),
+                item.mean(), item.best(), item.runs(), item.validRuns(),
+                best.stream().filter(other -> other.instance().equals(item.instance())).count() > 1))
+                .sorted(Comparator.comparing(ConfigurationWinner::instance, ExperimentArtifacts::naturalNameCompare)
+                        .thenComparing(ConfigurationWinner::algorithm).thenComparing(ConfigurationWinner::decoder)).toList();
+    }
+
+    public static List<SummaryObservation> writeAll(Path outputDirectory, List<RunObservation> runs,
+            String title, PackingDecoderType decoderType, List<ConfigurationRun> configurations) throws IOException {
         Files.createDirectories(outputDirectory);
         List<SummaryObservation> summaries = summarize(runs);
         writeRunsCsv(outputDirectory.resolve("runs.csv"), runs);
         writeSummaryCsv(outputDirectory.resolve("summary.csv"), summaries);
         writeOverallCsv(outputDirectory.resolve("overall.csv"), summaries);
         writeInstanceWinnersCsv(outputDirectory.resolve("instance-winners.csv"), instanceWinners(summaries));
+        if (!configurations.isEmpty()) {
+            StringBuilder csv = new StringBuilder("instance,algorithm,decoder,mean_percent,best_percent,runs,valid_runs,tied\n");
+            for (ConfigurationWinner item : configurationWinners(configurations)) {
+                row(csv, item.instance(), item.algorithm(), item.decoder(), f(item.mean()), f(item.best()),
+                        item.runs(), item.validRuns(), item.tied());
+            }
+            write(outputDirectory.resolve("instance-winners.csv"), csv);
+        }
         writeTracesCsv(outputDirectory.resolve("traces.csv"), runs);
         writeAlgorithmCatalogCsv(outputDirectory.resolve("algorithm-catalog.csv"));
         writeBestLayouts(outputDirectory.resolve("layouts"), runs);
         writeConvergenceCharts(outputDirectory.resolve("convergence"), runs);
-        writeReport(outputDirectory.resolve("report.html"), title, runs, summaries, decoderType);
+        writeReport(outputDirectory.resolve("report.html"), title, runs, summaries, decoderType, configurations);
         return summaries;
     }
 
@@ -56,11 +94,12 @@ public final class ExperimentArtifacts {
         List<SummaryObservation> result = new ArrayList<>();
         for (List<RunObservation> group : groups.values()) {
             group.sort(Comparator.comparingInt(RunObservation::repetition));
-            double[] values = group.stream().mapToDouble(RunObservation::utilizationPercent).sorted().toArray();
+            List<RunObservation> valid = group.stream().filter(RunObservation::valid).toList();
+            double[] values = valid.stream().mapToDouble(RunObservation::utilizationPercent).sorted().toArray();
             double mean = mean(values);
             double variance = 0.0;
             for (double value : values) variance += (value - mean) * (value - mean);
-            double median = values.length % 2 == 1
+            double median = values.length == 0 ? 0.0 : values.length % 2 == 1
                     ? values[values.length / 2]
                     : (values[values.length / 2 - 1] + values[values.length / 2]) / 2.0;
             RunObservation first = group.get(0);
@@ -69,14 +108,14 @@ public final class ExperimentArtifacts {
                     first.instance().name(),
                     group.size(),
                     (int) group.stream().filter(RunObservation::valid).count(),
-                    values[values.length - 1],
-                    values[0],
+                    values.length == 0 ? 0.0 : values[values.length - 1],
+                    values.length == 0 ? 0.0 : values[0],
                     mean,
                     median,
-                    Math.sqrt(variance / values.length),
+                    values.length == 0 ? 0.0 : Math.sqrt(variance / values.length),
                     group.stream().mapToDouble(RunObservation::elapsedMilliseconds).average().orElse(0.0),
                     Math.round(group.stream().mapToLong(RunObservation::evaluations).average().orElse(0.0)),
-                    group.stream().mapToLong(run -> run.solution().packedArea()).max().orElse(0)));
+                    valid.stream().mapToLong(run -> run.solution().packedArea()).max().orElse(0)));
         }
         result.sort(Comparator.comparing(SummaryObservation::instance, ExperimentArtifacts::naturalNameCompare)
                 .thenComparingInt(summary -> AlgorithmCatalog.displayOrder(summary.algorithm())));
@@ -201,7 +240,7 @@ public final class ExperimentArtifacts {
 
     private static void writeAlgorithmCatalogCsv(Path file) throws IOException {
         StringBuilder text = new StringBuilder(
-                "algorithm,display_name,exposure,role,group_weight_percent,family,representative,stochastic,rationale\n");
+                "algorithm,display_name,exposure,role,group_weight_percent,family,representative,stochastic,rationale,settings,compatibility_only\n");
         for (AlgorithmCatalog.Entry entry : AlgorithmCatalog.entries()) {
             row(text,
                     entry.id().name(),
@@ -212,7 +251,7 @@ public final class ExperimentArtifacts {
                     entry.family(),
                     entry.representative().name(),
                     entry.id().stochastic(),
-                    entry.rationale());
+                    entry.rationale(), AlgorithmCatalog.settings(entry.id()), AlgorithmCatalog.compatibilityOnly(entry.id()));
         }
         write(file, text);
     }
@@ -393,7 +432,7 @@ public final class ExperimentArtifacts {
             String title,
             List<RunObservation> runs,
             List<SummaryObservation> summaries,
-            PackingDecoderType decoderType) throws IOException {
+            PackingDecoderType decoderType, List<ConfigurationRun> configurations) throws IOException {
         Map<AlgorithmId, List<SummaryObservation>> groups = summaries.stream().collect(Collectors.groupingBy(
                 SummaryObservation::algorithm, LinkedHashMap::new, Collectors.toList()));
         StringBuilder html = new StringBuilder("<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">")
@@ -422,19 +461,32 @@ public final class ExperimentArtifacts {
                     .append(values.stream().mapToInt(SummaryObservation::runs).sum()).append("</td></tr>");
         }
         html.append("</tbody></table></div>");
-        html.append("<div class=\"card\"><h2>逐实例最优算法</h2>")
-                .append("<p>在本次实验包含的全部算法中，按同一实例的多次合法运行平均利用率选冠军；并列冠军全部列出。最好值用于核对，不参与冠军判定。</p>")
-                .append("<table><thead><tr><th>实例</th><th>最优算法</th><th>平均利用率</th><th>最好利用率</th><th>标准差</th><th>合法运行</th><th>并列</th></tr></thead><tbody>");
-        for (InstanceWinner winner : instanceWinners(summaries)) {
-            html.append("<tr><td>").append(xml(winner.instance())).append("</td><td>")
-                    .append(xml(winner.algorithm().displayName())).append("</td><td>")
-                    .append(f(winner.meanUtilization())).append("%</td><td>")
-                    .append(f(winner.bestUtilization())).append("%</td><td>")
-                    .append(f(winner.standardDeviation())).append("</td><td class=\"ok\">")
-                    .append(winner.validRuns()).append('/').append(winner.runs()).append("</td><td>")
-                    .append(winner.tied() ? "是" : "否").append("</td></tr>");
+        if (!configurations.isEmpty()) {
+            html.append("<div class=\"card\"><h2>逐实例最优配置</h2><p>固定搜索器与解码器，按合法运行平均利用率判定；并列配置分别列出。算法总览与分实例汇总按搜索器跨解码器聚合。</p>")
+                    .append("<table><thead><tr><th>实例</th><th>搜索器</th><th>解码器</th><th>平均利用率</th><th>最好</th><th>合法运行</th><th>并列</th></tr></thead><tbody>");
+            for (ConfigurationWinner item : configurationWinners(configurations)) {
+                html.append("<tr><td>").append(xml(item.instance())).append("</td><td>")
+                        .append(xml(item.algorithm())).append("</td><td>").append(xml(item.decoder()))
+                        .append("</td><td>").append(f(item.mean())).append("%</td><td>").append(f(item.best()))
+                        .append("%</td><td>").append(item.validRuns()).append('/').append(item.runs())
+                        .append("</td><td>").append(item.tied() ? "是" : "否").append("</td></tr>");
+            }
+            html.append("</tbody></table></div>");
+        } else {
+            html.append("<div class=\"card\"><h2>逐实例最优算法</h2>")
+                    .append("<p>在本次实验包含的全部家族策略配置中，按同一实例的多次合法运行平均利用率选冠军；并列冠军全部列出。最好值用于核对，不参与冠军判定。</p>")
+                    .append("<table><thead><tr><th>实例</th><th>最优配置</th><th>平均利用率</th><th>最好利用率</th><th>标准差</th><th>合法运行</th><th>并列</th></tr></thead><tbody>");
+            for (InstanceWinner winner : instanceWinners(summaries)) {
+                html.append("<tr><td>").append(xml(winner.instance())).append("</td><td>")
+                        .append(xml(winner.algorithm().displayName())).append("</td><td>")
+                        .append(f(winner.meanUtilization())).append("%</td><td>")
+                        .append(f(winner.bestUtilization())).append("%</td><td>")
+                        .append(f(winner.standardDeviation())).append("</td><td class=\"ok\">")
+                        .append(winner.validRuns()).append('/').append(winner.runs()).append("</td><td>")
+                        .append(winner.tied() ? "是" : "否").append("</td></tr>");
+            }
+            html.append("</tbody></table></div>");
         }
-        html.append("</tbody></table></div>");
         String budgetKind = runs.get(0).budgetKind();
         html.append("<div class=\"card\"><h2>比较口径</h2><p>");
         if (budgetKind.equals("EVALUATIONS")) {
@@ -527,7 +579,7 @@ public final class ExperimentArtifacts {
                 .filter(entry -> entry.exposure() == AlgorithmCatalog.Exposure.PRIMARY)
                 .count();
         long advanced = AlgorithmCatalog.entries().size() - primary;
-        html.append("<div class=\"card\"><h2>算法能力结构</h2><p>默认主界面展示 ")
+        html.append("<div class=\"card\"><h2>算法能力结构</h2><p>目录按算法家族与策略配置组织；配置入口数不代表独立算法数。MaxRects-BEST 为五规则择优组合，非单次评分。Skyline GLOBAL 与顺序 WM 入口不可直接用于 WM 单变量归因。默认主界面展示 ")
                 .append(primary).append(" 个工程主入口；另有 ")
                 .append(advanced)
                 .append(" 个已实现、可调用、可测试的高级策略不参与默认主榜。主展示按搜索优化60%、排样引擎40%组织，搜索层在前、排样层随后。完整数据见 <a href=\"algorithm-catalog.csv\">algorithm-catalog.csv</a>。</p>")
@@ -545,7 +597,10 @@ public final class ExperimentArtifacts {
                     .append("</td><td>").append(xml(entry.family()))
                     .append("</td><td>").append(xml(entry.representative().displayName()))
                     .append("</td><td style=\"text-align:left\">")
-                    .append(xml(entry.rationale())).append("</td></tr>");
+                    .append(xml(entry.rationale())).append("；")
+                    .append(xml(AlgorithmCatalog.settings(entry.id())))
+                    .append(AlgorithmCatalog.compatibilityOnly(entry.id()) ? "；兼容配置（默认收起）" : "")
+                    .append("</td></tr>");
         }
         html.append("</tbody></table></div></div>");
     }
@@ -654,7 +709,7 @@ public final class ExperimentArtifacts {
     private static double mean(double[] values) {
         double total = 0.0;
         for (double value : values) total += value;
-        return total / values.length;
+        return values.length == 0 ? 0.0 : total / values.length;
     }
 
     private static double averageRank(AlgorithmId algorithm, List<SummaryObservation> summaries) {

@@ -29,6 +29,43 @@ final class ExperimentInfrastructureTest {
     Path temporaryDirectory;
 
     @Test
+    void configurationWinnersKeepDecoderIdentityAndTies() {
+        var runs = List.of(
+                new ExperimentArtifacts.ConfigurationRun("gcut1", "ILS", "SKYLINE", true, 95),
+                new ExperimentArtifacts.ConfigurationRun("gcut1", "ILS", "MAXRECTS", true, 50),
+                new ExperimentArtifacts.ConfigurationRun("gcut1", "SA", "SKYLINE", true, 85),
+                new ExperimentArtifacts.ConfigurationRun("gcut2", "SA", "SKYLINE", true, 90),
+                new ExperimentArtifacts.ConfigurationRun("gcut2", "ILS", "MAXRECTS", true, 90),
+                new ExperimentArtifacts.ConfigurationRun("gcut2", "GA", "SKYLINE", false, 100));
+        var winners = ExperimentArtifacts.configurationWinners(runs);
+        assertEquals(3, winners.size());
+        assertEquals("ILS", winners.get(0).algorithm());
+        assertEquals("SKYLINE", winners.get(0).decoder());
+        assertEquals(95, winners.get(0).mean());
+        assertTrue(winners.subList(1, 3).stream().allMatch(ExperimentArtifacts.ConfigurationWinner::tied));
+    }
+
+    @Test
+    void invalidRunsCannotInflateSummaryOrWinAnInstance() {
+        Instance instance = new Instance("gcut1", 10, 10, List.of(new Item(1, 2, 2)));
+        Solution legal = new Solution("legal", List.of(new Placement(instance.items().get(0), 0, 0, false)), 1L);
+        Solution inflated = new Solution("invalid", List.of(
+                new Placement(new Item(2, 10, 10), 0, 0, false)), 1L);
+        var validRun = new RunObservation("test", "DEFAULT", 0, AlgorithmId.SA, instance, 1, 1,
+                legal, true, "", 1, 1, null, List.of());
+        var invalidRun = new RunObservation("test", "DEFAULT", 0, AlgorithmId.SA, instance, 2, 2,
+                inflated, false, "invalid", 1, 1, null, List.of());
+        var summary = ExperimentArtifacts.summarize(List.of(validRun, invalidRun)).get(0);
+        assertEquals(4.0, summary.meanUtilization());
+        assertEquals(4L, summary.bestPackedArea());
+        assertEquals(2, summary.runs());
+        assertEquals(1, summary.validRuns());
+        var invalidOnly = ExperimentArtifacts.summarize(List.of(invalidRun));
+        assertEquals(0.0, invalidOnly.get(0).meanUtilization());
+        assertTrue(ExperimentArtifacts.instanceWinners(invalidOnly).isEmpty());
+    }
+
+    @Test
     void readsStructuredExperimentConfiguration() throws IOException {
         Path file = write("""
                 dataDirectory=benchmarks
