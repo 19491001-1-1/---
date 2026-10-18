@@ -1,6 +1,6 @@
 # 更新日志
 
-本项目遵循 [Semantic Versioning](https://semver.org/)。
+记录算法实现、实验工具与可视化辅助的主要改动。版本号用于标记代码状态，不代表产品发布承诺。
 
 ## [Unreleased]
 
@@ -17,20 +17,20 @@
 
 ## [1.0.0] - 2026-10-15
 
-首个产品化交付版本。
+首个带算法、批量实验和布局可视化的版本。
 
 ### 新增
 
 - 46 个二维矩形排样算法入口与 14 个默认实验入口。
-- Vue 3 操作界面、Spring Boot API、命令行和单 jar 交付方式。
+- Vue 3 操作界面、Spring Boot API、命令行和单 jar 运行方式。
 - 单次求解、批量实验、实时进度、取消、缺口重试及跨进程任务恢复。
 - CSV、HTML、SVG 实验产物与结果分析视图。
 - Java 与前端覆盖率门禁、端到端冒烟测试及 Linux/Windows CI。
 
-### 工程化
+### 构建与检查
 
 - Maven、Node 与 pnpm 版本固定，构建依赖锁定。
-- Windows PowerShell 与 macOS/Linux Shell 运维脚本对齐。
+- Windows PowerShell 与 macOS/Linux Shell 实验脚本对齐。
 - 仓库内容检查、贡献指南、安全策略和 GitHub Issue/PR 模板。
 
 [1.0.0]: https://github.com/wwwwuuuu1122/2D-single-sheet-nesting/tree/v1.0.0

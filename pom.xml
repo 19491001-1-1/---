@@ -7,7 +7,7 @@
     <groupId>com.assessment</groupId>
     <artifactId>rectangle-packing</artifactId>
     <version>1.0.0</version>
-    <name>Rectangle Packing Experiment Platform</name>
+    <name>Rectangle Packing Algorithms and Experiments</name>
     <description>Two-dimensional rectangle packing algorithms and reproducible experiments.</description>
 
     <properties>

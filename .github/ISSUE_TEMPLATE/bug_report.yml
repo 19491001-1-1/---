@@ -1,5 +1,5 @@
 name: 缺陷报告
-description: 报告可复现的产品错误或回归
+description: 报告算法、实验结果或可视化中的可复现问题
 title: "[Bug] "
 labels: [bug]
 body:

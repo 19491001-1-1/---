@@ -1,5 +1,5 @@
-name: 功能建议
-description: 提议具有明确产品价值的能力
+name: 算法与实验建议
+description: 讨论算法变体、实验对照或可视化改进
 title: "[Feature] "
 labels: [enhancement]
 body:
@@ -7,14 +7,14 @@ body:
     id: problem
     attributes:
       label: 要解决的问题
-      description: 描述用户、场景和当前阻碍，不要只描述实现方案。
+      description: 说明哪条算法规则、实验现象或结果展示需要改进。
     validations:
       required: true
   - type: textarea
     id: outcome
     attributes:
       label: 期望结果
-      description: 描述可观察、可验收的产品行为。
+      description: 说明希望比较什么、怎样验证，不预先承诺一定提高利用率。
     validations:
       required: true
   - type: textarea

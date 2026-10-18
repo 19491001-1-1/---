@@ -1,42 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$project_dir"
-
-forbidden_files="$(find . -type f \
-  -not -path './.git/*' \
-  -not -path './target/*' \
-  -not -path './out/*' \
-  -not -path './results/*' \
-  -not -path './frontend/node_modules/*' \
-  -not -path './frontend/dist/*' \
-  \( -iname '*.pdf' -o -iname '*.docx' -o -iname '*.ppt' \
-     -o -iname '*.pptx' -o -iname '*.zip' \
-     -o -iname '*教程*' -o -iname '*答辩*' -o -iname '*explainer*' \) -print)"
-
-if [[ -n "$forbidden_files" ]]; then
-  echo "Repository check failed: reference or tutorial files must stay outside the source repository."
-  printf '%s\n' "$forbidden_files" | sed 's/^/  /'
-  exit 1
-fi
-
-if find . -name '.DS_Store' -not -path './.git/*' -print -quit | grep -q .; then
-  echo "Repository check failed: .DS_Store files were found."
-  exit 1
-fi
-
-if [[ -d .github/modernize ]]; then
-  echo "Repository check failed: local modernization tool state must stay outside the repository."
-  exit 1
-fi
-
-obsolete_product_docs=("PROJECT_STATUS.md" "docs/开发交接文档.md" "docs/性能优化记录.md")
-for obsolete_doc in "${obsolete_product_docs[@]}"; do
-  if [[ -e "$obsolete_doc" ]]; then
-    echo "Repository check failed: obsolete process document found: $obsolete_doc"
-    exit 1
-  fi
-done
-
+# 只检查版本控制范围，不扫描本地的大型实验产物。
+# 算法推导和答辩笔记可以保存在 docs/。
+failed=0
+while IFS= read -r -d '' path; do
+  case "$path" in
+    */.DS_Store|.DS_Store|.github/modernize/*|target/*|out/*|frontend/node_modules/*|frontend/dist/*|results/*|*.class|*.log|*.tmp)
+      printf 'Generated or local-only file should not be versioned: %s\n' "$path"
+      failed=1
+      ;;
+  esac
+done < <(git ls-files --cached --others --exclude-standard -z)
+if [[ "$failed" -ne 0 ]]; then exit 1; fi
 echo "Repository structure check passed."
