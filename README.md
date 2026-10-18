@@ -1,5 +1,7 @@
 # 二维矩形排样算法与实验
 
+**[直接查看算法源码](algorithms/README.md)**　[算法说明](docs/algorithms/README.md)　[对比实验](docs/experiments/RESULTS.md)
+
 这是一个二维矩形排样的算法课程项目。给定一张固定大小的板材和一组矩形零件，尝试通过不同的排样规则、搜索方法与参数组合，提高装入面积。
 
 项目主要研究两个问题：**怎样把零件放进去，以及怎样通过搜索找到更好的放置优先级。** 使用Java实现算法，在gcut1–12上进行对比、调参与多种子复验。前端用于查看矩形坐标、排样结果和收敛曲线，方便检查和演示算法。
@@ -114,11 +116,12 @@ java -jar target/rectangle-packing-1.0.0-web.jar
 ## 从源码看实现
 
 ```text
-src/main/java/com/assessment/packing/
+algorithms/src/main/java/com/assessment/packing/
   model/          Instance、Item、Placement、Solution
   solver/         搜索算法、排样引擎、参数与统计
-  optimization/   组合实验的配置与解码适配
   validation/     独立检查布局是否合法
+src/main/java/com/assessment/packing/
+  optimization/   组合实验的配置与解码适配
   experiment/     算法创建、批量实验与结果汇总
   io/             实例读取
   web/            可视化所需的接口与实验记录管理

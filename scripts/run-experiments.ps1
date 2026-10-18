@@ -9,8 +9,9 @@ $outputDirectory = Join-Path $projectRoot 'out'
 $sourceList = Join-Path $outputDirectory 'main-sources.txt'
 
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-$sources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src/main/java') -Recurse -File -Filter '*.java' |
-    Where-Object { $_.FullName -notmatch '[\\/]web[\\/]' } |
+$sourceRoots = @((Join-Path $projectRoot 'algorithms/src/main/java'), (Join-Path $projectRoot 'src/main/java'))
+$sources = Get-ChildItem -LiteralPath $sourceRoots -Recurse -File -Filter '*.java' |
+    Where-Object { $_.FullName -notmatch '[\\/](web|optimization)[\\/]' } |
     ForEach-Object { '"' + $_.FullName + '"' }
 [System.IO.File]::WriteAllLines($sourceList, $sources, [System.Text.UTF8Encoding]::new($false))
 

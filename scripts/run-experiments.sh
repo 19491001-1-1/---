@@ -5,7 +5,8 @@ project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$project_dir"
 
 mkdir -p out
-find src/main/java -name '*.java' ! -path '*/web/*' -print0 \
+find algorithms/src/main/java src/main/java -name '*.java' \
+  ! -path '*/web/*' ! -path '*/optimization/*' -print0 \
   | xargs -0 javac -encoding UTF-8 -d out
 
 if (( $# == 0 )); then

@@ -353,12 +353,13 @@ convergence/             收敛曲线 SVG
 ## 项目结构
 
 ```text
-src/main/java/com/assessment/packing/
-  Main.java              单算法命令行入口
+algorithms/src/main/java/com/assessment/packing/
   model/                 实例、零件、放置和解
-  io/                    数据读取
   solver/                算法实现与搜索统计
   validation/            独立合法性验证
+src/main/java/com/assessment/packing/
+  Main.java              单算法命令行入口
+  io/                    数据读取
   experiment/            算法目录、批量运行和报告生成
   web/                   Spring Boot 入口、API DTO、服务与错误协议
 src/test/java/           JUnit 入口与断言式回归测试

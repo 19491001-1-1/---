@@ -11,7 +11,7 @@
 
 ## 文件归属
 
-- `solver/`：搜索器、排样引擎、参数、缓存与统计。
+- [`algorithms/`](../algorithms/README.md)：真实算法源码，包含`solver/`、`model/`和`validation/`。
 - `optimization/`：组合调参入口与内核适配。
 - `experiment/`：算法创建、批量运行与汇总。
 - `validation/`：独立布局检查。
@@ -20,4 +20,4 @@
 - `frontend/`、`web/`：辅助查看与实验记录管理，不是算法主体。
 - `results/`：本地 CSV、布局、日志和汇报材料，不随 Git 发布。
 
-上述 Java 包位于 `src/main/java/com/assessment/packing/`，测试位于 `src/test/`。新增推导放入 `algorithms/`；实验方案和结果解释放入 `experiments/`。结果摘要应注明源码版本、预算、种子与统计口径。旧文件名保留为链接入口，不维护两份正文。
+算法包位于 `algorithms/src/main/java/com/assessment/packing/`，其余 Java 包位于 `src/main/java/com/assessment/packing/`，测试仍位于 `src/test/`。新增算法推导放入 `docs/algorithms/`；实验方案和结果解释放入 `docs/experiments/`。结果摘要应注明源码版本、预算、种子与统计口径。旧文件名保留为链接入口，不维护两份正文。

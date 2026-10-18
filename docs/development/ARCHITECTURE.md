@@ -1,6 +1,6 @@
 # 代码结构与求解流程
 
-算法实现集中在 `solver/`。`experiment/`组织配置、独立运行与统计，`validation/`检查输出是否合法。`web/`与`frontend/`用于交互查看和实验记录管理，算法与命令行运行不依赖前端。
+算法源码集中在根目录的[`algorithms/`](../../algorithms/README.md)，其中`solver/`实现搜索和排样，`model/`定义输入输出，`validation/`检查布局是否合法。`src/main/java/`中的`experiment/`组织配置、独立运行与统计，`web/`与`frontend/`用于辅助查看。算法与命令行运行不依赖前端。
 
 算法目录以 `AlgorithmCatalog.families()` 为统一家族配置模型，通过 `GET /api/algorithms/families` 提供给前端。评分、取件、WM 与禁忌记忆均作为配置差异说明，五个非 NF 的 Shelf-WM 配置带 `compatibilityOnly` 标记并默认收起；旧标识和既有接口继续可读。完整遍历覆盖全部配置。
 
@@ -47,8 +47,7 @@ Web DTO 不暴露求解器实例、内部配置对象或文件路径。实例 ID
 
 ### Maven 结构决策
 
-当前保持单 Maven 模块。算法核心、CLI、实验脚本与 Web 适配层共用同一份编译产物，
-可避免为了新增 API 而移动已经被固定种子和 46 个入口回归测试覆盖的源码。Maven 同时产出：
+当前保持单 Maven 模块。`algorithms/src/main/java`是算法源码根，`src/main/java`保留CLI、实验组织和Web适配层。Maven通过build-helper将两者一同编译，Java包名及调用关系不变，不维护算法副本，也不引入独立发布模块。Maven同时产出：
 
 - 以 `Main` 为主类的普通 CLI JAR；
 - 以 `PackingWebApplication` 为主类、分类名为 `web` 的 Spring Boot 可执行 JAR。
