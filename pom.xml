@@ -21,7 +21,7 @@
         <jmh.version>1.37</jmh.version>
         <build.helper.version>3.6.0</build.helper.version>
         <exec.version>3.5.0</exec.version>
-        <spring-boot.version>3.5.16</spring-boot.version>
+        <spring-boot.version>4.1.1</spring-boot.version>
         <frontend.plugin.version>1.15.4</frontend.plugin.version>
         <!-- jsdom 30 / undici 8 的最低运行时已提升到 Node 22.19；统一到当前 LTS 24，
              避免单元测试在加载 DOM 环境前就因缺少 worker_threads API 崩溃。 -->
